@@ -2,5 +2,7 @@
 .DS_Store
 .idea
 __pycache__/
-data/
 .pytest_cache/
+/data/parameters_base.fits
+/data/parameters_base1.fits
+/data/hinode_source/

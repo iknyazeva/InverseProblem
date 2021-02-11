@@ -2,8 +2,24 @@ from typing import List, Union
 from astropy.io import fits
 from inverse_problem.milne_edington.me import me_model
 import numpy as np
+import os
+from pathlib import Path
 from tqdm import tqdm
 import matplotlib.pyplot as plt
+from google_drive_downloader import GoogleDriveDownloader as gdd
+
+
+def get_project_root() -> Path:
+    return Path(__file__).parent.parent.parent
+
+
+def download_from_google_disc(fileid=None, dest=None):
+    if fileid is None:
+        fileid = '19jkSXHxAPWZvfgo5oxSmvEagme5YLY33'
+    if dest is None:
+        dest = Path(os.getcwd()).parent / 'data' / 'downloaded_parameters_base.fits'
+    gdd.download_file_from_google_drive(file_id=fileid,
+                                        dest_path=dest, showsize=True)
 
 
 def compute_mean_spectrum(filename, batch_size=None, nbatches=None):
@@ -11,7 +27,7 @@ def compute_mean_spectrum(filename, batch_size=None, nbatches=None):
     line_arg = 1000 * (np.linspace(6302.0692255, 6303.2544205, 56) - line_vec[0])
     # filename = '/Users/irinaknyazeva/Projects/Solar/InverseProblem/data/parameters_base.fits'
     parameter_base = fits.open(filename)[0].data
-    cont_vec = parameter_base[:, 6] + line_vec[2]* parameter_base[:, 7]
+    cont_vec = parameter_base[:, 6] + line_vec[2] * parameter_base[:, 7]
     N = parameter_base.shape[0]
     if batch_size is None:
         batch_size = 10
