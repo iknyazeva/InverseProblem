@@ -19,9 +19,13 @@ class SpectrumDataset(Dataset):
 
         self.param_path = param_path
         self.source = source
+        self.download = downnload
+        if self.download:
+            fileid = '12GslrX_J0Pw9jfr23oWoJ5gDb_I91Mj7'
+            download_from_google_disc(fileid=fileid, dest=self.param_path)
         self.transform = transform
         self._init_dataset()
-        self.download = downnload
+
 
 
     def __len__(self):
@@ -47,14 +51,8 @@ class SpectrumDataset(Dataset):
 
     def _init_dataset(self):
         if self.source == 'database':
-            if self.download:
-                fileid = '12GslrX_J0Pw9jfr23oWoJ5gDb_I91Mj7'
-                download_from_google_disc(fileid=fileid, dest=self.param_path)
             self.param_source = fits.open(self.param_path)[0].data
         elif self.source == 'refer':
-            if self.download:
-                fileid = '17hT6FeSc75GupWACwkXb-s5Yl6UYi543'
-                download_from_google_disc(fileid=fileid, dest=self.param_path)
             self.param_source = fits.open(self.param_path)
         else:
             raise AssertionError('source parameter should be \'database\' or \'refer\'')
