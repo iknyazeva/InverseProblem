@@ -3,3 +3,7 @@ matplotlib
 numpy
 torch
 astropy
+requests
+scipy
+tqdm
+
