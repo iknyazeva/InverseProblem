@@ -178,3 +178,32 @@ def mlp_transform_rescale(**kwargs) -> Callable:
     to_tensor = ToTensor()
     to_mlp = ToConcatMlp()
     return transforms.Compose([rescale, flat, to_tensor, to_mlp])
+
+
+class ToConv1d(object):
+    """Prepare X and y for conv 1d model"""
+    def __call__(self, sample):
+        (spectrum, cont), params = sample['X'], sample['Y']
+        return {'X': spectrum,
+                'Y': params}
+
+def conv1d_transform_rescale(**kwargs) -> Callable:
+    allowed_kwargs = {'factor', 'cont_scale', 'output', 'logB', 'mode'}
+    for key in kwargs:
+        if key not in allowed_kwargs:
+            raise ValueError(f'{key} not in allowed keywords: factor, cont_scale')
+
+    rescale = Rescale(**kwargs)
+    to_tensor = ToTensor()
+    to_conv = ToConv1d()
+    return transforms.Compose([rescale, to_tensor, to_conv])
+
+def conv1d_transform_standard(**kwargs) -> Callable:
+    allowed_kwargs = {'logB', 'output', 'mode'}
+    for key in kwargs:
+        if key not in allowed_kwargs:
+            raise ValueError(f'{key} not in allowed keywords: factor, cont_scale')
+    norm = NormalizeStandard(**kwargs)
+    to_tensor = ToTensor()
+    to_conv = ToConv1d()
+    return transforms.Compose([norm, to_tensor, to_conv])
