@@ -1,5 +1,6 @@
 from .dataset import SpectrumDataset
 from .transforms import mlp_transform_rescale
+import json
 import torch.nn.functional as F
 import torch
 from torch import nn, cuda
@@ -11,7 +12,8 @@ import attr
 
 @attr.s(slots=True)
 class HyperParams:
-    top_input = attr.ib(default=225)
+    n_input = attr.ib(default=224)
+    bottom_output = attr.ib(default=40)
     predict_ind = attr.ib(default=[0, 1, 2])
     top_output = attr.ib(default=3)
     transform_type = attr.ib(default='mlp_transform_rescale')
@@ -19,21 +21,80 @@ class HyperParams:
     hidden_size = attr.ib(default=100)
     dropout = attr.ib(default=0.0)
     bn = attr.ib(default=1)
-    net = attr.ib(default='TopNet')
+    top_net = attr.ib(default='TopNet')
+    bottom_net = attr.ib(default='BottomSimpleConv1d')
     activation = attr.ib(default='relu')
     lr = attr.ib(default=0.0001)
     lr_decay = attr.ib(default=0.0)
     weight_decay = attr.ib(default=0.0)
     batch_size = attr.ib(default=20)
     n_epochs = attr.ib(default=5)
-    dropout = attr.ib(default=0.0)
     per_epoch = attr.ib(default=10)
+
+    @classmethod
+    def from_file(cls, path_to_json: Path):
+        with open(path_to_json) as json_file:
+            params = json.loads(json_file.read())
+            fields = {field.name for field in attr.fields(HyperParams)}
+            return cls(**{k: v for k, v in params.items() if k in fields})
 
 
 class BaseNet(nn.Module):
     def __init__(self, hps: HyperParams):
+        """
+        Args:
+            hps (nn.Module): class contains all hyperparameters
+        """
         super().__init__()
         self.hps = hps
+        self.activation = getattr(F, hps.activation)
+
+
+class FullModel(BaseNet):
+    def __init__(self, hps: HyperParams, bottom: BaseNet, top: BaseNet):
+        super(FullModel, self).__init__(hps)
+        self.bottom = bottom(hps)
+        self.top = top(hps)
+
+    def forward(self, sample_x):
+        x = self.bottom(sample_x[0])
+        x = torch.cat((x, sample_x[1]), axis=1)
+        x = self.top(x)
+        return x
+
+
+class BottomSimpleMLPNet(BaseNet):
+    """ Two-layer MLP forward propagation concatenation, bottom layer, take plain input
+    """
+
+    def __init__(self, hps: HyperParams):
+        super(BottomSimpleMLPNet, self).__init__(hps)
+
+        self.fc1 = nn.Linear(hps.n_input, hps.bottom_output)
+
+    def forward(self, x):
+        x = self.activation(self.fc1(x))
+        return x
+
+
+class BottomSimpleConv1d(BaseNet):
+    def __init__(self, hps: HyperParams):
+        super().__init__(hps)
+
+        self.conv1 = nn.Sequential(nn.Conv1d(4, 32, 5, padding=2),
+                                   nn.AvgPool1d(2),
+                                   nn.ReLU())
+        self.conv2 = nn.Sequential(nn.Conv1d(32, 64, 5),
+                                   nn.AvgPool1d(2),
+                                   nn.ReLU())
+        self.linear = nn.Sequential(nn.Linear(64 * 12, hps.bottom_output), nn.ReLU())
+
+    def forward(self, x):
+        x = self.conv1(x)
+        x = self.conv2(x)
+        x = x.view(x.size(0), -1)
+        x = self.linear(x)
+        return x
 
 
 class TopNet(BaseNet):
@@ -43,10 +104,8 @@ class TopNet(BaseNet):
 
     def __init__(self, hps: HyperParams):
         super().__init__(hps)
-        self.fc1 = nn.Linear(225, 3)
-        self.fc1 = nn.Linear(hps.top_input, hps.hidden_size)
+        self.fc1 = nn.Linear(hps.bottom_output + 1, hps.hidden_size)
         self.fc2 = nn.Linear(hps.hidden_size, hps.top_output)
-        self.activation = getattr(F, hps.activation)
         self.dropout = nn.Dropout(hps.dropout)
 
     def forward(self, x):

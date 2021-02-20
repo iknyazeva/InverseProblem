@@ -18,7 +18,9 @@ class Model:
         self.hps = hps
         self.criterion = nn.MSELoss()
         self.on_gpu = torch.cuda.is_available()
-        self.net = getattr(models, hps.net)(hps)
+        self.topnet = getattr(models, hps.top_net)
+        self.bottomnet = getattr(models, hps.bottom_net)
+        self.net = Model(hps, self.bottomnet, self.topnet)
         self.optimizer = self._init_optimizer()
         self.transform = getattr(transforms, hps.transform_type)()
         if self.on_gpu:

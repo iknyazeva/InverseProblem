@@ -1,8 +1,7 @@
 from pathlib import Path
 from inverse_problem.milne_edington import HinodeME
 from inverse_problem.milne_edington.data_utils import download_from_google_disc
-import numpy as np
-from typing import Callable, List
+from typing import Callable
 from torch.utils.data import Dataset
 from astropy.io import fits
 
@@ -12,21 +11,20 @@ class SpectrumDataset(Dataset):
     Args:
         source (str, optional) = source of data, database or fits refer from Hinode
     """
-    # todo update for download otption
+
+    # todo update for download option
     # todo noise generation
     def __init__(self, param_path: Path,
-                 source='database', transform: Callable = None, downnload: bool = False):
+                 source='database', transform: Callable = None, download: bool = False):
 
         self.param_path = param_path
         self.source = source
-        self.download = downnload
+        self.download = download
         if self.download:
             fileid = '12GslrX_J0Pw9jfr23oWoJ5gDb_I91Mj7'
             download_from_google_disc(fileid=fileid, dest=self.param_path)
         self.transform = transform
         self._init_dataset()
-
-
 
     def __len__(self):
         if self.source == 'database':

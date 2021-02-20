@@ -5,7 +5,7 @@ import torch
 import os
 from pathlib import Path
 from inverse_problem.nn_inversion import SpectrumDataset, ToTensor, NormalizeStandard, Rescale, FlattenSpectrum
-from inverse_problem.nn_inversion import mlp_transform_standard, mlp_transform_rescale
+from inverse_problem.nn_inversion import mlp_transform_standard, mlp_transform_rescale,conv1d_transform_rescale
 from inverse_problem.nn_inversion.transforms import normalize_output
 
 
@@ -54,5 +54,10 @@ class TestTransforms:
 
     def test_mlp_transfrom_rescale(self, sample_from_database):
         trsfm = mlp_transform_rescale(factor=[1, 1, 1, 1])
+        transformed_sample = trsfm(sample_from_database)
+        assert True
+
+    def test_conv1d_transform_rescale(self, sample_from_database):
+        trsfm = conv1d_transform_rescale(factor=[1, 1, 1, 1])
         transformed_sample = trsfm(sample_from_database)
         assert True
