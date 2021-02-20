@@ -4,6 +4,7 @@ import os
 from inverse_problem import get_project_root
 from inverse_problem.nn_inversion.models import HyperParams
 from inverse_problem.nn_inversion.models import BaseNet, TopNet, BottomSimpleMLPNet, FullModel, BottomSimpleConv1d
+from inverse_problem.nn_inversion import models
 
 class TestModels:
 
@@ -55,7 +56,7 @@ class TestModels:
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         N = hps.batch_size
         d_in = hps.n_input
-        x0 = torch.randn(N, 4, d_in, device=device, dtype=dtype)
+        x0 = torch.randn(N, 4, d_in//4, device=device, dtype=dtype)
         x1 = torch.randn(N, 1, device=device, dtype=dtype)
         return x0, x1
 
@@ -83,13 +84,19 @@ class TestModels:
 
 
     def test_model_mlp_stack(self, sample_x):
-        hps = HyperParams()
-        net = FullModel(hps, BottomSimpleMLPNet, TopNet)
+        path_to_json = os.path.join(get_project_root(), 'res_experiments', 'hps_base_mlp.json')
+        hps = HyperParams.from_file(path_to_json=path_to_json)
+        bottom = getattr(models, hps.bottom_net)
+        top = getattr(models, hps.top_net)
+        net = FullModel(hps, bottom, top)
         out = net(sample_x)
         assert True
 
     def test_model_conv_stack(self, sample_conv_x):
-        hps = HyperParams()
-        net = FullModel(hps, BottomSimpleConv1d, TopNet)
+        path_to_json = os.path.join(get_project_root(), 'res_experiments', 'hps_base_conv.json')
+        hps = HyperParams.from_file(path_to_json=path_to_json)
+        bottom = getattr(models, hps.bottom_net)
+        top = getattr(models, hps.top_net)
+        net = FullModel(hps, bottom, top)
         out = net(sample_conv_x)
         assert True
