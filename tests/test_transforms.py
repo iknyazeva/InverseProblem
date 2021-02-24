@@ -4,6 +4,7 @@ from torchvision import transforms
 import torch
 import os
 from pathlib import Path
+from inverse_problem import get_project_root
 from inverse_problem.nn_inversion import SpectrumDataset, ToTensor, NormalizeStandard, Rescale, FlattenSpectrum
 from inverse_problem.nn_inversion import mlp_transform_standard, mlp_transform_rescale,conv1d_transform_rescale
 from inverse_problem.nn_inversion.transforms import normalize_output
@@ -12,13 +13,18 @@ from inverse_problem.nn_inversion.transforms import normalize_output
 class TestTransforms:
     @pytest.fixture
     def sample_from_database(self):
-        # filename = '/Users/irinaknyazeva/Projects/Solar/InverseProblem/data/parameters_base.fits'
-        project_path = Path(__file__).resolve().parents[1]
+        project_path = get_project_root()
         filename = os.path.join(project_path, 'data/parameters_base.fits')
         source = 'database'
         sobj = SpectrumDataset(filename, source=source)
         sample = sobj[0]
         return sample
+
+    # todo: add asserts for different inputs
+    def test_normalize_output(self, sample_from_database):
+        y = sample_from_database['Y']
+        sample = normalize_output(y, mode='norm', logB=True)
+        assert True
 
     def test_to_tensor(self, sample_from_database):
         to_tensor = ToTensor()
@@ -26,11 +32,6 @@ class TestTransforms:
         assert isinstance(sample['Y'], torch.Tensor)
         assert isinstance(sample['X'][0], torch.Tensor)
 
-    # todo: add asserts for different inputs
-    def test_normalize_output(self, sample_from_database):
-        y = sample_from_database['Y']
-        sample = normalize_output(y, mode='norm', logB=True)
-        assert True
 
     # todo: add asserts for different inputs
     def test_normalize_standard(self, sample_from_database):
@@ -53,9 +54,10 @@ class TestTransforms:
         assert True
 
     def test_mlp_transfrom_rescale(self, sample_from_database):
-        trsfm = mlp_transform_rescale(factor=[1, 1, 1, 1])
+        kwargs = {'factors': [1, 1000, 2000, 1000], 'norm_output': True}
+        trsfm = mlp_transform_rescale(**kwargs)
         transformed_sample = trsfm(sample_from_database)
-        assert True
+        assert transformed_sample[0]
 
     def test_conv1d_transform_rescale(self, sample_from_database):
         trsfm = conv1d_transform_rescale(factor=[1, 1, 1, 1])

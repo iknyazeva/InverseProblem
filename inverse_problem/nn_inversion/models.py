@@ -17,6 +17,11 @@ class HyperParams:
     predict_ind = attr.ib(default=[0, 1, 2])
     top_output = attr.ib(default=3)
     transform_type = attr.ib(default='mlp_transform_rescale')
+    mode = attr.ib(default='range')
+    logB = attr.ib(default=True)
+    factors = attr.ib(default=[1, 1000, 1000, 1000])
+    cont_scale = attr.ib(default=40000)
+    norm_output = attr.ib(default=True)
     source = attr.ib(default='database')
     hidden_size = attr.ib(default=100)
     dropout = attr.ib(default=0.0)
@@ -30,6 +35,7 @@ class HyperParams:
     batch_size = attr.ib(default=20)
     n_epochs = attr.ib(default=5)
     per_epoch = attr.ib(default=10)
+
 
     @classmethod
     def from_file(cls, path_to_json: Path):

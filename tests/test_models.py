@@ -3,7 +3,7 @@ import pytest
 import os
 from inverse_problem import get_project_root
 from inverse_problem.nn_inversion.models import HyperParams
-from inverse_problem.nn_inversion.models import BaseNet, TopNet, BottomSimpleMLPNet, FullModel, BottomSimpleConv1d
+from inverse_problem.nn_inversion.models import BaseNet, BottomSimpleMLPNet, FullModel, BottomSimpleConv1d
 from inverse_problem.nn_inversion import models
 
 class TestModels:
@@ -63,7 +63,7 @@ class TestModels:
     def test_hyper_params(self):
         path_to_json = os.path.join(get_project_root(), 'res_experiments', 'hps_base_mlp.json')
         hps = HyperParams.from_file(path_to_json=path_to_json)
-        assert True
+        assert hps.activation == 'relu'
 
     def test_base_net(self):
         hps = HyperParams()

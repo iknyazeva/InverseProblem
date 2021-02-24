@@ -11,14 +11,14 @@ class Normalize:
     """ Basic class for spectrum normalization
     """
 
-    def __init__(self, output, **kwargs):
+    def __init__(self, norm_output, **kwargs):
         project_path = Path(__file__).resolve().parents[1].parent
         filename = os.path.join(project_path, 'inverse_problem/nn_inversion/spectrumRanges.pickle')
         with open(filename, 'rb') as handle:
             spectrum_dict = pickle.load(handle)
         self.spectrum_dict = spectrum_dict
-        self.output = output
-        if output:
+        self.norm_output = norm_output
+        if norm_output:
             kwdefaults = {'mode': 'range', 'logB': True}
             for kw in kwdefaults.keys():
                 kwargs.setdefault(kw, kwdefaults[kw])
@@ -26,7 +26,7 @@ class Normalize:
 
     def __call__(self, sample):
         params = sample['Y']
-        if self.output:
+        if self.norm_output:
             params = normalize_output(params, mode=self.kwargs['mode'], logB=self.kwargs['logB'])
         return {'X': sample['X'],
                 'Y': params}
@@ -36,8 +36,8 @@ class CenteredMean(Normalize):
     """ Extract mean from each component
     """
 
-    def __init__(self, output=True, **kwargs):
-        super(CenteredMean, self).__init__(output, **kwargs)
+    def __init__(self, norm_output=True, **kwargs):
+        super(CenteredMean, self).__init__(norm_output, **kwargs)
         self.mean = self.spectrum_dict['mean']
 
     def __call__(self, sample):
@@ -54,8 +54,8 @@ class NormalizeStandard(Normalize):
 
     """
 
-    def __init__(self, output=True, **kwargs):
-        super(NormalizeStandard, self).__init__(output, **kwargs)
+    def __init__(self, norm_output=True, **kwargs):
+        super(NormalizeStandard, self).__init__(norm_output, **kwargs)
         self.mean = self.spectrum_dict['mean']
         self.std = self.spectrum_dict['std']
         self.mean_cont = self.spectrum_dict['cont_mean']
@@ -74,18 +74,19 @@ class Rescale(Normalize):
     """ Multiply each spectrum component to factor, preserve spectrum shape
     """
 
-    def __init__(self, factors=None, cont_scale=None, output=True, **kwargs):
-        super(Rescale, self).__init__(output, **kwargs)
+    def __init__(self, factors=None, cont_scale=None, norm_output=True, **kwargs):
+        super(Rescale, self).__init__(norm_output, **kwargs)
 
         if factors is None:
             self.factors = [1, 1000, 1000, 1000]
             self.cont_scale = 40000
-            self.output = output
+            self.norm_output = norm_output
         else:
             self.factors = factors
             self.cont_scale = cont_scale
 
     def __call__(self, sample):
+        # output normalization
         sample = super(Rescale, self).__call__(sample)
 
         (spectrum, cont), params = sample['X'], sample['Y']
@@ -156,10 +157,10 @@ class ToConcatMlp(object):
 
 
 def mlp_transform_standard(**kwargs) -> Callable:
-    allowed_kwargs = {'logB', 'output', 'mode'}
+    allowed_kwargs = {'logB', 'norm_output', 'mode'}
     for key in kwargs:
         if key not in allowed_kwargs:
-            raise ValueError(f'{key} not in allowed keywords: factor, cont_scale')
+            raise ValueError(f'{key} not in allowed keywords: logB, norm_output, mode')
     norm = NormalizeStandard(**kwargs)
     flat = FlattenSpectrum()
     to_tensor = ToTensor()
@@ -168,7 +169,7 @@ def mlp_transform_standard(**kwargs) -> Callable:
 
 
 def mlp_transform_rescale(**kwargs) -> Callable:
-    allowed_kwargs = {'factor', 'cont_scale', 'output', 'logB', 'mode'}
+    allowed_kwargs = {'factors', 'cont_scale', 'norm_output', 'logB', 'mode'}
     for key in kwargs:
         if key not in allowed_kwargs:
             raise ValueError(f'{key} not in allowed keywords: factor, cont_scale')
@@ -191,7 +192,7 @@ class ToConv1d(object):
 
 
 def conv1d_transform_rescale(**kwargs) -> Callable:
-    allowed_kwargs = {'factor', 'cont_scale', 'output', 'logB', 'mode'}
+    allowed_kwargs = {'factors', 'cont_scale', 'norm_output', 'logB', 'mode'}
     for key in kwargs:
         if key not in allowed_kwargs:
             raise ValueError(f'{key} not in allowed keywords: factor, cont_scale')
@@ -199,11 +200,11 @@ def conv1d_transform_rescale(**kwargs) -> Callable:
     rescale = Rescale(**kwargs)
     to_conv = ToConv1d()
     to_tensor = ToTensor()
-    return transforms.Compose([rescale,to_conv, to_tensor])
+    return transforms.Compose([rescale, to_conv, to_tensor])
 
 
 def conv1d_transform_standard(**kwargs) -> Callable:
-    allowed_kwargs = {'logB', 'output', 'mode'}
+    allowed_kwargs = {'logB', 'norm_output', 'mode'}
     for key in kwargs:
         if key not in allowed_kwargs:
             raise ValueError(f'{key} not in allowed keywords: factor, cont_scale')

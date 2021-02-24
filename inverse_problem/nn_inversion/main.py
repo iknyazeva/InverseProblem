@@ -5,7 +5,7 @@ from torch import nn
 import os
 from pathlib import Path
 from torch.utils.data import DataLoader
-from inverse_problem.nn_inversion.models import HyperParams, TopNet
+from inverse_problem.nn_inversion.models import HyperParams, FullModel
 from inverse_problem.nn_inversion import models
 from inverse_problem.nn_inversion import transforms
 
@@ -17,14 +17,28 @@ class Model:
     def __init__(self, hps: HyperParams):
         self.hps = hps
         self.criterion = nn.MSELoss()
-        self.on_gpu = torch.cuda.is_available()
-        self.topnet = getattr(models, hps.top_net)
-        self.bottomnet = getattr(models, hps.bottom_net)
-        self.net = Model(hps, self.bottomnet, self.topnet)
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        self.top_net = getattr(models, hps.top_net)
+        self.bottom_net = getattr(models, hps.bottom_net)
+        self.net = FullModel(hps, self.bottom_net, self.top_net).to(self.device)
         self.optimizer = self._init_optimizer()
-        self.transform = getattr(transforms, hps.transform_type)()
-        if self.on_gpu:
-            self.net.cuda()
+        self.transform = self._init_transform()
+
+    def _init_transform(self):
+        transform_type = self.hps.transform_type
+        factors = self.hps.factors
+        cont_scale = self.hps.cont_scale
+        norm_output = self.hps.norm_output
+        logB = self.hps.logB
+        mode = self.hps.mode
+        rescale_kwargs = {'factors': factors, 'cont_scale': cont_scale,
+                          'norm_output': norm_output, 'logB': logB, 'mode': mode}
+        normal_kwargs = {'logB': logB, 'norm_output': norm_output, 'mode': mode}
+        tsfm_kwargs = {'mlp_transform_rescale': rescale_kwargs,
+                       'mlp_transform_standard': normal_kwargs,
+                       'conv1d_transform_rescale': rescale_kwargs,
+                       'conv1d_transform_standard': normal_kwargs}
+        return getattr(transforms, transform_type)(**tsfm_kwargs[transform_type])
 
     def _init_optimizer(self):
         return torch.optim.Adam(self.net.parameters(),
@@ -32,8 +46,8 @@ class Model:
 
     def fit_step(self, sample_batch):
         # todo only work for simple model, need to refactor later
-        x = sample_batch['X']
-        y = sample_batch['Y'][:, self.hps.predict_ind]
+        x = [sample_batch['X'][0].to(self.device), sample_batch['X'][1].to(self.device)]
+        y = sample_batch['Y'][:, self.hps.predict_ind].to(self.device)
         self.optimizer.zero_grad()
         outputs = self.net(x)
         loss = self.criterion(outputs, y)
@@ -43,8 +57,8 @@ class Model:
 
     def eval_step(self, sample_batch):
         self.net.eval()
-        x = sample_batch['X']
-        y = sample_batch['Y'][:, self.hps.predict_ind]
+        x = [sample_batch['X'][0].to(self.device), sample_batch['X'][1].to(self.device)]
+        y = sample_batch['Y'][:, self.hps.predict_ind].to(self.device)
         with torch.no_grad():
             outputs = self.net(x)
             loss = self.criterion(outputs, y)
@@ -57,7 +71,6 @@ class Model:
         transformed_dataset = SpectrumDataset(filename, source=self.hps.source,
                                               transform=self.transform)
         return DataLoader(transformed_dataset, batch_size=self.hps.batch_size, shuffle=True)
-
 
     def train(self, model_path: Path = None):
         train_loader = self.make_loader()
@@ -80,5 +93,3 @@ class Model:
                 tqdm.write(log_template.format(ep=epoch + 1, t_loss=train_loss,
                                                v_loss=val_loss))
         return history
-
-
