@@ -8,6 +8,8 @@ c = 3e10
 mass = 9.1e-28
 el_c = 4.8e-10
 
+absolute_noise_levels = [109, 28, 28, 44]
+
 
 class HinodeME(object):
     """ Compute spectrum I,Q,U,V component based on atmosphere model, class for data loader generation
@@ -68,10 +70,19 @@ class HinodeME(object):
         Returns: concatenated spectrum
         """
         lines = me_model(self.param_vector, self.line_arg, self.line_vector, with_ff=with_ff)
-        return lines[0]
+        
+        noise = generate_noise(self.cont)
+        
+        profile = lines[0] + noise
+        
+        
+        #this cont level matches better with cont level, calculated from real date (includes noise)
+        self.cont *= np.max(profile)
+        
+        return profile
 
 
-def me_model(param_vec, line_arg=None, line_vec=None, with_ff=True):
+def me_model(param_vec, line_arg=None, line_vec=None, with_ff=True, with_noise = True):
     """
 
     Args:
@@ -96,6 +107,7 @@ def me_model(param_vec, line_arg=None, line_vec=None, with_ff=True):
     if len(param_vec.shape) == 1:
         param_vec = np.reshape(param_vec, (1, -1))
 
+
     B, theta, xi, D, gamma, etta_0, S_0, S_1, Dop_shift = _prepare_base_model_parameters(param_vec, line_vec)
     spectrum = _compute_spectrum(B, theta, xi, D, gamma, etta_0, S_0, S_1, Dop_shift, line_arg, line_vec)
     if with_ff:
@@ -105,6 +117,13 @@ def me_model(param_vec, line_arg=None, line_vec=None, with_ff=True):
         return ff * spectrum + (1 - ff) * zero_spectrum
     else:
         return spectrum
+    
+def generate_noise(cont):
+    noise_level = np.array(absolute_noise_levels) / cont
+    noise_level = np.reshape(noise_level.T, (1, 4))
+    noise = noise_level*np.random.normal(size = (56, 4))
+    
+    return noise
 
 def _prepare_base_model_parameters(param_vec, line_vec, norm=True):
     """
