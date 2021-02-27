@@ -15,11 +15,23 @@ class SpectrumDataset(Dataset):
     # todo update for download option
     # todo noise generation
     def __init__(self, param_path: Path,
-                 source='database', transform: Callable = None, download: bool = False):
+                 source='database', transform: Callable = None, download: bool = False,
+                 ff: bool = True, noise: bool = True):
+        """
 
+        Args:
+            param_path (Path): path to file
+            source (str):
+            transform (Callable): transforms from
+            download (bool):
+            ff (): whether to use filling factor
+            noise (): whether to add noise
+        """
         self.param_path = param_path
         self.source = source
         self.download = download
+        self.noise = noise
+        self.ff = ff
         if self.download:
             fileid = '12GslrX_J0Pw9jfr23oWoJ5gDb_I91Mj7'
             download_from_google_disc(fileid=fileid, dest=self.param_path)
@@ -41,13 +53,19 @@ class SpectrumDataset(Dataset):
             row_id = item // self.param_source[1].data.shape[0]
             col_id = item % self.param_source[1].data.shape[1]
             obj = HinodeME.from_refer(row_id, col_id, self.param_source)
-        spectrum = obj.compute_spectrum()
+
+        spectrum = obj.compute_spectrum(with_ff=self.ff, with_noise=self.noise)
         sample = {'X': (spectrum, obj.cont), 'Y': obj.param_vector}
         if self.transform:
             sample = self.transform(sample)
         return sample
 
     def _init_dataset(self):
+        """
+        Opens parameters source
+        Raises: AssertionError if source is undefined
+
+        """
         if self.source == 'database':
             self.param_source = fits.open(self.param_path)[0].data
         elif self.source == 'refer':

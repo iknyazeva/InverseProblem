@@ -1,7 +1,5 @@
 import pytest
 import numpy as np
-from torchvision import transforms
-import torch
 import os
 from pathlib import Path
 from inverse_problem.milne_edington.data_utils import get_project_root
