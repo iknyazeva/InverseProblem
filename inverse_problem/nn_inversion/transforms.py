@@ -10,7 +10,6 @@ from torchvision import transforms
 class Normalize:
     """ Basic class for spectrum normalization
     """
-
     def __init__(self, norm_output, **kwargs):
         project_path = Path(__file__).resolve().parents[1].parent
         filename = os.path.join(project_path, 'inverse_problem/nn_inversion/spectrumRanges.pickle')
@@ -33,15 +32,14 @@ class Normalize:
 
 
 class CenteredMean(Normalize):
-    """ Extract mean from each component
-    """
+    """ Extracts mean from each component"""
 
     def __init__(self, norm_output=True, **kwargs):
-        super(CenteredMean, self).__init__(norm_output, **kwargs)
+        super().__init__(norm_output, **kwargs)
         self.mean = self.spectrum_dict['mean']
 
     def __call__(self, sample):
-        sample = super(CenteredMean, self).__call__(sample)
+        sample = super().__call__(sample)
         (spectrum, cont), params = sample['X'], sample['Y']
         spectrum_normalized = spectrum.flatten(order='F') - self.mean
 
@@ -50,19 +48,17 @@ class CenteredMean(Normalize):
 
 
 class NormalizeStandard(Normalize):
-    """ Normalize each component to mean and standard deviation
-
-    """
+    """ Normalize each component to mean and standard deviation"""
 
     def __init__(self, norm_output=True, **kwargs):
-        super(NormalizeStandard, self).__init__(norm_output, **kwargs)
+        super().__init__(norm_output, **kwargs)
         self.mean = self.spectrum_dict['mean']
         self.std = self.spectrum_dict['std']
         self.mean_cont = self.spectrum_dict['cont_mean']
         self.std_cont = self.spectrum_dict['cont_std']
 
     def __call__(self, sample):
-        sample = super(NormalizeStandard, self).__call__(sample)
+        sample = super().__call__(sample)
         (spectrum, cont), params = sample['X'], sample['Y']
         spectrum = (spectrum.flatten(order='F') - self.mean) / self.std
         cont = (cont - self.mean_cont) / self.std_cont
@@ -71,23 +67,24 @@ class NormalizeStandard(Normalize):
 
 
 class Rescale(Normalize):
-    """ Multiply each spectrum component to factor, preserve spectrum shape
-    """
+    """ Multiply each spectrum component by factor, preserve spectrum shape"""
 
     def __init__(self, factors=None, cont_scale=None, norm_output=True, **kwargs):
-        super(Rescale, self).__init__(norm_output, **kwargs)
+        super().__init__(norm_output, **kwargs)
 
         if factors is None:
             self.factors = [1, 1000, 1000, 1000]
-            self.cont_scale = 40000
+            # todo чему равно cont_scale если не задано?
+            self.cont_scale = cont_scale if cont_scale is not None else 40000
             self.norm_output = norm_output
         else:
             self.factors = factors
-            self.cont_scale = cont_scale
+            self.cont_scale = cont_scale if cont_scale is not None else 40000
+            self.norm_output = norm_output
 
     def __call__(self, sample):
         # output normalization
-        sample = super(Rescale, self).__call__(sample)
+        sample = super().__call__(sample)
 
         (spectrum, cont), params = sample['X'], sample['Y']
         spectrum = spectrum * np.array(self.factors).reshape((1, 4))
@@ -138,7 +135,7 @@ class FlattenSpectrum:
 
 
 class ToTensor(object):
-    """Convert ndarrays in sample to Tensors."""
+    """Convert np arrays intoTensors."""
 
     def __call__(self, sample):
         (spectrum, cont), params = sample['X'], sample['Y']
@@ -152,7 +149,7 @@ class ToConcatMlp(object):
 
     def __call__(self, sample):
         (spectrum, cont), params = sample['X'], sample['Y']
-        return {'X': torch.cat((sample['X'][0], sample['X'][1])),
+        return {'X': torch.cat((spectrum, cont)),
                 'Y': params}
 
 
@@ -172,12 +169,11 @@ def mlp_transform_rescale(**kwargs) -> Callable:
     allowed_kwargs = {'factors', 'cont_scale', 'norm_output', 'logB', 'mode'}
     for key in kwargs:
         if key not in allowed_kwargs:
-            raise ValueError(f'{key} not in allowed keywords: factor, cont_scale')
+            raise ЛунError(f'{key} not in allowed keywords: factor, cont_scale')
 
     rescale = Rescale(**kwargs)
     flat = FlattenSpectrum()
     to_tensor = ToTensor()
-    # to_mlp = ToConcatMlp()
     return transforms.Compose([rescale, flat, to_tensor])
 
 
@@ -195,7 +191,7 @@ def conv1d_transform_rescale(**kwargs) -> Callable:
     allowed_kwargs = {'factors', 'cont_scale', 'norm_output', 'logB', 'mode'}
     for key in kwargs:
         if key not in allowed_kwargs:
-            raise ValueError(f'{key} not in allowed keywords: factor, cont_scale')
+            raise KeyError(f'{key} not in allowed keywords: factor, cont_scale')
 
     rescale = Rescale(**kwargs)
     to_conv = ToConv1d()
@@ -207,7 +203,7 @@ def conv1d_transform_standard(**kwargs) -> Callable:
     allowed_kwargs = {'logB', 'norm_output', 'mode'}
     for key in kwargs:
         if key not in allowed_kwargs:
-            raise ValueError(f'{key} not in allowed keywords: factor, cont_scale')
+            raise KeyError(f'{key} not in allowed keywords: factor, cont_scale')
     norm = NormalizeStandard(**kwargs)
     to_tensor = ToTensor()
     to_conv = ToConv1d()

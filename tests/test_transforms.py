@@ -54,12 +54,12 @@ class TestTransforms:
         assert True
 
     def test_mlp_transfrom_rescale(self, sample_from_database):
-        kwargs = {'factors': [1, 1000, 2000, 1000], 'norm_output': True}
+        kwargs = {'factors': [1, 1000, 2000, 1000], 'cont_scale': 40000, 'norm_output': True}
         trsfm = mlp_transform_rescale(**kwargs)
         transformed_sample = trsfm(sample_from_database)
-        assert transformed_sample[0]
+        assert transformed_sample['X']
 
     def test_conv1d_transform_rescale(self, sample_from_database):
-        trsfm = conv1d_transform_rescale(factor=[1, 1, 1, 1])
+        trsfm = conv1d_transform_rescale(factors=[1, 1, 1, 1])
         transformed_sample = trsfm(sample_from_database)
         assert True
