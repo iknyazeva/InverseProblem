@@ -36,17 +36,13 @@ class TestMain:
     def test_model_fit_step(self, base_mlp_rescale_hps):
         model = Model(base_mlp_rescale_hps)
         train_loader = model.make_loader()
-        it = iter(train_loader)
-        sample_batch = next(it)
-        loss = model.fit_step(sample_batch)
+        loss = model.fit_step(train_loader)
         assert loss > 0
 
     def test_model_eval_step(self, base_mlp_rescale_hps):
         model = Model(base_mlp_rescale_hps)
         train_loader = model.make_loader()
-        it = iter(train_loader)
-        sample_batch = next(it)
-        loss = model.eval_step(sample_batch)
+        loss = model.eval_step(train_loader)
         assert loss > 0
 
     def test_model_mlp_train(self, base_mlp_rescale_hps):
