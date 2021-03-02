@@ -13,8 +13,6 @@ absolute_noise_levels = [109, 28, 28, 44]
 
 class HinodeME(object):
     """ Compute spectrum I,Q,U,V component based on atmosphere model, class for data loader generation
-
-
     """
 
     # constant parameters for any instance
@@ -24,15 +22,23 @@ class HinodeME(object):
 
     def __init__(self, param_vec, norm=True):
         """
-        Parameters initialization with normalized continum
+        Parameters initialization with normalized continuum
 
         Args:
-            param_vec (array float): list of parameters for milne_edington model, here we don't use batch option from me_mpdel
+            param_vec (array float): list of parameters for milne_edington model, here we don't use batch option from me_model
+                0. B, Field Strength, Hinode range = (0, 5000)
+                1. Theta, Field Inclination, Hinode range = (0, 180)
+                2. Theta, Field Azimuth, Hinode range = (0, 180)
+                3. Doppler Width (Broadening),  Hinode range = (20, 90)
+                4. Damping, Hinode range = (0, 1.5)
+                5. Line Strength, Hinode range = (0.01, 100)
+                6. Source Function S_0
+                7. Source Function gradient S_1
+                8. Doppler Shift, Hinode range = (-10, +10)
+                9. Filling Factor, Hinode range = (0, 1)
+                10. Stray light Doppler shift, Hinode range = (-10, +10)
 
-        TODO:
-        describe all the parameters from About_parameters.ipynb
         """
-
         # parameters for inversion
         param_vec = np.array(param_vec)
         # add broadcasting param_vec.shape
@@ -40,17 +46,19 @@ class HinodeME(object):
 
         # TODO : add assertion for each parameter
         self.param_vector = param_vec
-        if norm:
-            self.cont = 1
-        else:
-            self.cont = self.param_vector[6] + self.line_vector[2] * self.param_vector[7]
+        
+        self.norm = norm
+
+        self.cont = self.param_vector[6] + self.line_vector[2] * self.param_vector[7]
+        
+        self.cont = np.reshape(self.cont, (-1, 1))
 
     @classmethod
     def from_parameters_base(cls, idx, parameters_base=None):
         # file parameter base already in memory
         assert (idx >= 0) and (idx < parameters_base.shape[0])
         param_vector = parameters_base[idx].copy()
-        return cls(param_vector, norm=False)
+        return cls(param_vector)
 
     @classmethod
     def from_refer(cls, idx_0, idx_1, refer):
@@ -58,40 +66,34 @@ class HinodeME(object):
         assert (idx_0 >= 0) and (idx_1 < 512), 'Index should be less than 512 and greater than 0 '
         assert (idx_1 >= 0) and (idx_1 < 873), 'Index should be less than 872 and greater than 0 '
 
-        param_list = [1, 2, 3, 6, 8, 7, 33, 10, 5, 12, 13]
+        param_list = [1, 2, 3, 6, 8, 7, 9, 10, 5, 12, 13]
         param_vec = np.array([refer[i].data[idx_0, idx_1] for i in param_list])
-        return cls(param_vec, norm=False)
+        return cls(param_vec)
 
-    def compute_spectrum(self, with_ff=True) -> np.ndarray:
+    def compute_spectrum(self, with_ff=True, with_noise=True) -> np.ndarray:
         """
         Compute Milne Eddington approximation
         Args:
             with_ff (Bool): using model with filling factor
+            with_noise (Bool): whether to add noise
         Returns: concatenated spectrum
         """
-        lines = me_model(self.param_vector, self.line_arg, self.line_vector, with_ff=with_ff)
-        
-        noise = generate_noise(self.cont)
-        
-        profile = lines[0] + noise
-        
-        
-        #this cont level matches better with cont level, calculated from real date (includes noise)
-        self.cont *= np.max(profile)
-        
-        return profile
+        lines = me_model(self.param_vector, self.line_arg, self.line_vector, with_ff=with_ff, 
+                         norm=self.norm, with_noise = with_noise, cont = self.cont)
+
+        # this cont level matches better with cont level, calculated from real date (includes noise)
+        self.cont = np.amax(lines, axis = (1, 2)) * self.cont.T
+        return lines
 
 
-def me_model(param_vec, line_arg=None, line_vec=None, with_ff=True, with_noise = True):
+
+def me_model(param_vec, line_arg=None, line_vec=None, with_ff=True, norm=True, with_noise = True, cont = np.array([1])):
     """
-
     Args:
         line_vec (float,float, float): specific argument for inversion for hinode (6302.5, 2.5, 1)
         line_arg (ndarray): 1dim array with the spectral line argument, 56 in Hinode case
-
         param_vec (ndarray): shape
         with_ff (Boolean): use model with filling factor
-
     Returns:
     spectrum lines
     """
@@ -107,35 +109,36 @@ def me_model(param_vec, line_arg=None, line_vec=None, with_ff=True, with_noise =
     if len(param_vec.shape) == 1:
         param_vec = np.reshape(param_vec, (1, -1))
 
-
-    B, theta, xi, D, gamma, etta_0, S_0, S_1, Dop_shift = _prepare_base_model_parameters(param_vec, line_vec)
+    B, theta, xi, D, gamma, etta_0, S_0, S_1, Dop_shift = _prepare_base_model_parameters(param_vec, line_vec, norm)
     spectrum = _compute_spectrum(B, theta, xi, D, gamma, etta_0, S_0, S_1, Dop_shift, line_arg, line_vec)
     if with_ff:
-        B0, theta, xi, D, gamma, etta_0, S_0, S_1, Dop_shift0 = _prepare_zero_model_parameters(param_vec, line_vec)
+        B0, theta, xi, D, gamma, etta_0, S_0, S_1, Dop_shift0 = _prepare_zero_model_parameters(param_vec, line_vec, norm)
         zero_spectrum = _compute_spectrum(B0, theta, xi, D, gamma, etta_0, S_0, S_1, Dop_shift0, line_arg, line_vec)
         ff = param_vec[:, 9].reshape(-1, 1, 1)
-        return ff * spectrum + (1 - ff) * zero_spectrum
+        quiet_spectrum = ff * spectrum + (1 - ff) * zero_spectrum
     else:
-        return spectrum
+        quiet_spectrum = spectrum
     
-def generate_noise(cont):
-    noise_level = np.array(absolute_noise_levels) / cont
-    noise_level = np.reshape(noise_level.T, (1, 4))
-    noise = noise_level*np.random.normal(size = (56, 4))
+    if with_noise:
+        noise_level = np.array(absolute_noise_levels)
+        noise_level = np.broadcast_to(noise_level, (cont.shape[0], 4))/cont
+        noise_level = np.reshape(noise_level.T, (-1, 1, 4))
+        noise = noise_level*np.random.normal(size = quiet_spectrum.shape)
     
-    return noise
+        return quiet_spectrum + noise
+    
+    else:
+        return quiet_spectrum    
+
 
 def _prepare_base_model_parameters(param_vec, line_vec, norm=True):
     """
-
     Args:
         line_vec:
         param_vec (ndarray): vector with 9 parameters atmosphere, size number of examples to number of parameters
         norm (Bool):
-
     Returns:
         9 separates parameters for ME model
-
     """
     # parameters for inversion
     wl0 = line_vec[0] * 1e-8
@@ -168,15 +171,13 @@ def _prepare_base_model_parameters(param_vec, line_vec, norm=True):
     Dop_shift = params[8] * 1e5 / c * wl0  # Doppler shift
     return B, theta, xi, D, gamma, etta_0, S_0, S_1, Dop_shift
 
-def _prepare_zero_model_parameters(param_vec, line_vec, norm = True):
-    """
 
+def _prepare_zero_model_parameters(param_vec, line_vec, norm=True):
+    """
     Args:
         param_vec: vector with 11 parameters atmosphere
-
     Returns:
         9 separates parameters for ME model, but with zero B and stray shift
-
     """
     # parameters for inversion
     if not isinstance(param_vec, np.ndarray):
@@ -191,7 +192,6 @@ def _prepare_zero_model_parameters(param_vec, line_vec, norm = True):
 
 def _compute_spectrum(B, theta, xi, D, gamma, etta_0, S_0, S_1, Dop_shift, line_arg, line_vec):
     """
-
     Args:
         B (ndarray): vector with size batch_size
         theta (ndarray): vector with size batch_size
@@ -204,7 +204,6 @@ def _compute_spectrum(B, theta, xi, D, gamma, etta_0, S_0, S_1, Dop_shift, line_
         Dop_shift (ndarray): vector with size batch_size
         line_vec:
         line_arg:
-
     Returns:
         spectrum lines: I, Q, U, V as a
     """
@@ -221,7 +220,7 @@ def _compute_spectrum(B, theta, xi, D, gamma, etta_0, S_0, S_1, Dop_shift, line_
     if not isinstance(B, float):
         x = np.broadcast_to(line_arg, (len(B), len(line_arg))).T
     else:
-        x =  np.broadcast_to(line_arg, (1, 56)).T
+        x = np.broadcast_to(line_arg, (1, 56)).T
 
     v = (x * 1e-11 - Dop_shift) / D
     a = gamma
