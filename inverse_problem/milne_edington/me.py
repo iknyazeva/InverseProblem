@@ -56,7 +56,7 @@ class HinodeME(object):
         # file parameter base already in memory
         assert (idx >= 0) and (idx < parameters_base.shape[0])
         param_vector = parameters_base[idx].copy()
-        return cls(param_vector, norm=False)
+        return cls(param_vector)
 
     @classmethod
     def from_refer(cls, idx_0, idx_1, refer):
@@ -64,9 +64,9 @@ class HinodeME(object):
         assert (idx_0 >= 0) and (idx_1 < 512), 'Index should be less than 512 and greater than 0 '
         assert (idx_1 >= 0) and (idx_1 < 873), 'Index should be less than 872 and greater than 0 '
 
-        param_list = [1, 2, 3, 6, 8, 7, 33, 10, 5, 12, 13]
+        param_list = [1, 2, 3, 6, 8, 7, 9, 10, 5, 12, 13]
         param_vec = np.array([refer[i].data[idx_0, idx_1] for i in param_list])
-        return cls(param_vec, norm=False)
+        return cls(param_vec)
 
     def compute_spectrum(self, with_ff=True, with_noise=True) -> np.ndarray:
         """
@@ -125,7 +125,7 @@ def generate_noise(cont, norm=False):
     noise_level = np.array(absolute_noise_levels, dtype=float)
 
     if norm:
-        noise_level /= cont
+        noise_level = noise_level/cont
     
     noise_level = np.reshape(noise_level.T, (1, 4))
     noise = noise_level * np.random.normal(size=(56, 4))
