@@ -79,7 +79,7 @@ class HinodeME(object):
         lines = me_model(self.param_vector, self.line_arg, self.line_vector, with_ff=with_ff, norm = self.norm)
 
         if with_noise:
-            noise = generate_noise(self.cont)
+            noise = generate_noise(self.cont, self.noise)
             profile = lines[0] + noise
             # this cont level matches better with cont level, calculated from real date (includes noise)
             self.cont *= np.max(profile)
