@@ -20,7 +20,7 @@ class HinodeME(object):
     line_vector = (6302.5, 2.5, 1)
     line_arg = 1000 * (np.linspace(6302.0692255, 6303.2544205, 56) - line_vector[0])
 
-    def __init__(self, param_vec, norm=True):
+    def __init__(self, param_vec, norm=False):
         """
         Parameters initialization with normalized continuum
 
@@ -76,10 +76,10 @@ class HinodeME(object):
             with_noise (Bool): whether to add noise
         Returns: concatenated spectrum
         """
-        lines = me_model(self.param_vector, self.line_arg, self.line_vector, with_ff=with_ff, norm = self.norm)
+        lines = me_model(self.param_vector, self.line_arg, self.line_vector, with_ff=with_ff, norm=self.norm)
 
         if with_noise:
-            noise = generate_noise(self.cont, self.noise)
+            noise = generate_noise(self.cont, self.norm)
             profile = lines[0] + noise
             # this cont level matches better with cont level, calculated from real date (includes noise)
             self.cont *= np.max(profile)
@@ -88,7 +88,7 @@ class HinodeME(object):
         return lines[0]
 
 
-def me_model(param_vec, line_arg=None, line_vec=None, with_ff=True, norm = True):
+def me_model(param_vec, line_arg=None, line_vec=None, with_ff=True, norm=True):
     """
     Args:
         line_vec (float,float, float): specific argument for inversion for hinode (6302.5, 2.5, 1)
@@ -121,9 +121,9 @@ def me_model(param_vec, line_arg=None, line_vec=None, with_ff=True, norm = True)
         return spectrum
 
 
-def generate_noise(cont, norm = True):
-    noise_level = np.array(absolute_noise_levels)
-    
+def generate_noise(cont, norm=False):
+    noise_level = np.array(absolute_noise_levels, dtype=float)
+
     if norm:
         noise_level /= cont
     

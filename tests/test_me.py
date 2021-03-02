@@ -173,3 +173,11 @@ class TestHinodeME:
         obj = HinodeME.from_parameters_base(0, parameter_base)
         spectrum = obj.compute_spectrum(with_ff=True, with_noise=False)
         assert True
+
+
+    def test_noise(self):
+        param_vec = [1250., 15., 20., 30., 1., 50., 0.5, 0.5, 0., 1., 0.]
+        hinode = HinodeME(param_vec)
+        noised = hinode.compute_spectrum()
+        assert True
+
