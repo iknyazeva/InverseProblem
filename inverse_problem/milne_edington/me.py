@@ -46,10 +46,10 @@ class HinodeME(object):
 
         # TODO : add assertion for each parameter
         self.param_vector = param_vec
-        if norm:
-            self.cont = 1
-        else:
-            self.cont = self.param_vector[6] + self.line_vector[2] * self.param_vector[7]
+        
+        self.norm = norm
+
+        self.cont = self.param_vector[6] + self.line_vector[2] * self.param_vector[7]
 
     @classmethod
     def from_parameters_base(cls, idx, parameters_base=None):
@@ -76,7 +76,7 @@ class HinodeME(object):
             with_noise (Bool): whether to add noise
         Returns: concatenated spectrum
         """
-        lines = me_model(self.param_vector, self.line_arg, self.line_vector, with_ff=with_ff)
+        lines = me_model(self.param_vector, self.line_arg, self.line_vector, with_ff=with_ff, norm = self.norm)
 
         if with_noise:
             noise = generate_noise(self.cont)
@@ -88,7 +88,7 @@ class HinodeME(object):
         return lines[0]
 
 
-def me_model(param_vec, line_arg=None, line_vec=None, with_ff=True):
+def me_model(param_vec, line_arg=None, line_vec=None, with_ff=True, norm = True):
     """
     Args:
         line_vec (float,float, float): specific argument for inversion for hinode (6302.5, 2.5, 1)
@@ -110,10 +110,10 @@ def me_model(param_vec, line_arg=None, line_vec=None, with_ff=True):
     if len(param_vec.shape) == 1:
         param_vec = np.reshape(param_vec, (1, -1))
 
-    B, theta, xi, D, gamma, etta_0, S_0, S_1, Dop_shift = _prepare_base_model_parameters(param_vec, line_vec)
+    B, theta, xi, D, gamma, etta_0, S_0, S_1, Dop_shift = _prepare_base_model_parameters(param_vec, line_vec, norm)
     spectrum = _compute_spectrum(B, theta, xi, D, gamma, etta_0, S_0, S_1, Dop_shift, line_arg, line_vec)
     if with_ff:
-        B0, theta, xi, D, gamma, etta_0, S_0, S_1, Dop_shift0 = _prepare_zero_model_parameters(param_vec, line_vec)
+        B0, theta, xi, D, gamma, etta_0, S_0, S_1, Dop_shift0 = _prepare_zero_model_parameters(param_vec, line_vec, norm)
         zero_spectrum = _compute_spectrum(B0, theta, xi, D, gamma, etta_0, S_0, S_1, Dop_shift0, line_arg, line_vec)
         ff = param_vec[:, 9].reshape(-1, 1, 1)
         return ff * spectrum + (1 - ff) * zero_spectrum
@@ -121,8 +121,12 @@ def me_model(param_vec, line_arg=None, line_vec=None, with_ff=True):
         return spectrum
 
 
-def generate_noise(cont):
-    noise_level = np.array(absolute_noise_levels) / cont
+def generate_noise(cont, norm = True):
+    noise_level = np.array(absolute_noise_levels)
+    
+    if norm:
+        noise_level /= cont
+    
     noise_level = np.reshape(noise_level.T, (1, 4))
     noise = noise_level * np.random.normal(size=(56, 4))
 
