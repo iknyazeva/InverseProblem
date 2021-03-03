@@ -1,15 +1,12 @@
 import scipy
 import scipy.special
 import numpy as np
-import matplotlib.pyplot as plt
-import time
 
 c = 3e10
 mass = 9.1e-28
 el_c = 4.8e-10
 
 absolute_noise_levels = [109, 28, 28, 44]
-
 
 class HinodeME(object):
     """ Compute spectrum I,Q,U,V component based on atmosphere model, class for data loader generation
@@ -40,24 +37,20 @@ class HinodeME(object):
 
         """
         # parameters for inversion
-        param_vec = np.array(param_vec)
+        param_vec = np.array(param_vec).astype(float)
         # add broadcasting param_vec.shape
         assert True == (len(param_vec) == 11), 'For ME model number of parameters should be 11 '
-
         # TODO : add assertion for each parameter
-        self.param_vector = param_vec
-        
+        self.param_vector = param_vec.astype(float)
         self.norm = norm
-
         self.cont = self.param_vector[6] + self.line_vector[2] * self.param_vector[7]
-        
-        self.cont = np.reshape(self.cont, (-1, 1))
+        self.cont = np.reshape(self.cont, (-1, 1)).astype(float)
 
     @classmethod
     def from_parameters_base(cls, idx, parameters_base=None):
         # file parameter base already in memory
         assert (idx >= 0) and (idx < parameters_base.shape[0])
-        param_vector = parameters_base[idx].copy()
+        param_vector = parameters_base[idx].astype(float).copy()
         return cls(param_vector)
 
     @classmethod
@@ -67,7 +60,7 @@ class HinodeME(object):
         assert (idx_1 >= 0) and (idx_1 < 873), 'Index should be less than 872 and greater than 0 '
 
         param_list = [1, 2, 3, 6, 8, 7, 9, 10, 5, 12, 13]
-        param_vec = np.array([refer[i].data[idx_0, idx_1] for i in param_list])
+        param_vec = np.array([refer[i].data[idx_0, idx_1] for i in param_list], dtype='float')
         return cls(param_vec)
 
     def compute_spectrum(self, with_ff=True, with_noise=True) -> np.ndarray:
@@ -79,20 +72,20 @@ class HinodeME(object):
         Returns: concatenated spectrum
         """
         lines = me_model(self.param_vector, self.line_arg, self.line_vector, with_ff=with_ff, 
-                         norm=self.norm, with_noise = with_noise, cont = self.cont)
+                         norm=self.norm, with_noise=with_noise, cont=self.cont)
 
         # this cont level matches better with cont level, calculated from real date (includes noise)
-        self.cont = np.amax(lines, axis = (1, 2)) * self.cont.T
+        self.cont = np.amax(lines, axis=(1, 2)) * self.cont.T
         return lines
 
 
 
-def me_model(param_vec, line_arg=None, line_vec=None, with_ff=True, norm=True, with_noise = True, cont = np.array([1])):
+def me_model(param_vec, line_arg=None, line_vec=None, with_ff=True, norm=True, with_noise=True, cont=np.array([1])):
     """
     Args:
         line_vec (float,float, float): specific argument for inversion for hinode (6302.5, 2.5, 1)
-        line_arg (ndarray): 1dim array with the spectral line argument, 56 in Hinode case
-        param_vec (ndarray): shape
+        line_arg (float ndarray): 1dim array with the spectral line argument, 56 in Hinode case
+        param_vec (float ndarray): shape
         with_ff (Boolean): use model with filling factor
     Returns:
     spectrum lines
@@ -105,9 +98,9 @@ def me_model(param_vec, line_arg=None, line_vec=None, with_ff=True, norm=True, w
     g = line_vec[1]
     mu = line_vec[2]
 
-    param_vec = np.array(param_vec)
+    param_vec = np.array(param_vec, dtype='float')
     if len(param_vec.shape) == 1:
-        param_vec = np.reshape(param_vec, (1, -1))
+        param_vec = np.reshape(param_vec, (1, -1)).astype(float)
 
     B, theta, xi, D, gamma, etta_0, S_0, S_1, Dop_shift = _prepare_base_model_parameters(param_vec, line_vec, norm)
     spectrum = _compute_spectrum(B, theta, xi, D, gamma, etta_0, S_0, S_1, Dop_shift, line_arg, line_vec)
@@ -120,10 +113,10 @@ def me_model(param_vec, line_arg=None, line_vec=None, with_ff=True, norm=True, w
         quiet_spectrum = spectrum
     
     if with_noise:
-        noise_level = np.array(absolute_noise_levels)
-        noise_level = np.broadcast_to(noise_level, (cont.shape[0], 4))/cont
+        noise_level = np.array(absolute_noise_levels, dtype='float')
+        noise_level = np.broadcast_to(noise_level, (cont.shape[0], 4)) / cont
         noise_level = np.reshape(noise_level.T, (-1, 1, 4))
-        noise = noise_level*np.random.normal(size = quiet_spectrum.shape)
+        noise = noise_level*np.random.normal(size=quiet_spectrum.shape)
     
         return quiet_spectrum + noise
     
@@ -146,10 +139,10 @@ def _prepare_base_model_parameters(param_vec, line_vec, norm=True):
     mu = line_vec[2]
 
     if not isinstance(param_vec, np.ndarray):
-        param_vec = np.array(param_vec)
+        param_vec = np.array(param_vec, dtype='float')
         if len(param_vec.shape) == 1:
-            param_vec = np.reshape(param_vec, (1, -1))
-    params = param_vec.copy()
+            param_vec = np.reshape(param_vec, (1, -1)).astype(float)
+    params = param_vec.astype(float).copy()
 
     if norm:
         cont = param_vec[:, 6] + mu * param_vec[:, 7]
@@ -181,9 +174,9 @@ def _prepare_zero_model_parameters(param_vec, line_vec, norm=True):
     """
     # parameters for inversion
     if not isinstance(param_vec, np.ndarray):
-        param_vec = np.array(param_vec)
+        param_vec = np.array(param_vec, dtype='float')
         if len(param_vec.shape) == 1:
-            param_vec = np.reshape(param_vec, (1, -1))
+            param_vec = np.reshape(param_vec, (1, -1)).astype(float)
     params = param_vec[:, :9].copy()
     params[:, 0] = np.zeros(param_vec.shape[0])
     params[:, 8] = param_vec[:, 10]
