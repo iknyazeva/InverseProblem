@@ -8,6 +8,7 @@ el_c = 4.8e-10
 
 absolute_noise_levels = [109, 28, 28, 44]
 
+
 class HinodeME(object):
     """ Compute spectrum I,Q,U,V component based on atmosphere model, class for data loader generation
     """
@@ -17,7 +18,7 @@ class HinodeME(object):
     line_vector = (6302.5, 2.5, 1)
     line_arg = 1000 * (np.linspace(6302.0692255, 6303.2544205, 56) - line_vector[0])
 
-    def __init__(self, param_vec, norm=True):
+    def __init__(self, param_vec):
         """
         Parameters initialization with normalized continuum
 
@@ -42,9 +43,8 @@ class HinodeME(object):
         assert True == (len(param_vec) == 11), 'For ME model number of parameters should be 11 '
         # TODO : add assertion for each parameter
         self.param_vector = param_vec.astype(float)
-        self.norm = norm
         self.cont = self.param_vector[6] + self.line_vector[2] * self.param_vector[7]
-        self.cont = np.reshape(self.cont, (-1, 1)).astype(float)
+        # self.cont = np.reshape(self.cont, (-1, 1)).astype(float)
 
     @classmethod
     def from_parameters_base(cls, idx, parameters_base=None):
@@ -71,16 +71,16 @@ class HinodeME(object):
             with_noise (Bool): whether to add noise
         Returns: concatenated spectrum
         """
-        lines = me_model(self.param_vector, self.line_arg, self.line_vector, with_ff=with_ff, 
-                         norm=self.norm, with_noise=with_noise, cont=self.cont)
+        lines = me_model(self.param_vector, self.line_arg, self.line_vector, with_ff=with_ff,
+                         with_noise=with_noise)
 
         # this cont level matches better with cont level, calculated from real date (includes noise)
-        self.cont = np.amax(lines, axis=(1, 2)) * self.cont.T
+        self.cont = np.amax(lines) * self.cont
         return lines
 
 
-
-def me_model(param_vec, line_arg=None, line_vec=None, with_ff=True, norm=True, with_noise=True, cont=np.array([1])):
+def me_model(param_vec, line_arg=None, line_vec=None,
+             with_ff=True, norm=True, with_noise=True, **kwargs):
     """
     Args:
         line_vec (float,float, float): specific argument for inversion for hinode (6302.5, 2.5, 1)
@@ -105,23 +105,43 @@ def me_model(param_vec, line_arg=None, line_vec=None, with_ff=True, norm=True, w
     B, theta, xi, D, gamma, etta_0, S_0, S_1, Dop_shift = _prepare_base_model_parameters(param_vec, line_vec, norm)
     spectrum = _compute_spectrum(B, theta, xi, D, gamma, etta_0, S_0, S_1, Dop_shift, line_arg, line_vec)
     if with_ff:
-        B0, theta, xi, D, gamma, etta_0, S_0, S_1, Dop_shift0 = _prepare_zero_model_parameters(param_vec, line_vec, norm)
+        B0, theta, xi, D, gamma, etta_0, S_0, S_1, Dop_shift0 = _prepare_zero_model_parameters(param_vec, line_vec,
+                                                                                               norm)
         zero_spectrum = _compute_spectrum(B0, theta, xi, D, gamma, etta_0, S_0, S_1, Dop_shift0, line_arg, line_vec)
         ff = param_vec[:, 9].reshape(-1, 1, 1)
         quiet_spectrum = ff * spectrum + (1 - ff) * zero_spectrum
     else:
         quiet_spectrum = spectrum
-    
+
     if with_noise:
-        noise_level = np.array(absolute_noise_levels, dtype='float')
-        noise_level = np.broadcast_to(noise_level, (cont.shape[0], 4)) / cont
-        noise_level = np.reshape(noise_level.T, (-1, 1, 4))
-        noise = noise_level*np.random.normal(size=quiet_spectrum.shape)
-    
+        noise = generate_noise(param_vec, mu=mu, **kwargs)
         return quiet_spectrum + noise
-    
+
     else:
-        return quiet_spectrum    
+        return quiet_spectrum
+
+
+def generate_noise(param_vec, absolute_noise_levels=[109, 28, 28, 44], noise_size=None, mu=1):
+    """
+    Args:
+        noise_size: shape of resulted noise
+        param_vec (list or ndarray): list of 11 atmosphere parameters
+        mu:
+        absolute_noise_levels (list of numbers): magical empirical values
+
+    Returns:
+        noise as ndarray with the same shape as spectrum generated from param_vec
+    """
+    param_vec = np.array(param_vec)
+    if len(param_vec.shape) == 1:
+        param_vec = np.reshape(param_vec, (1, -1))
+    if noise_size is None:
+        noise_size = (param_vec.shape[0], 56, 4)
+    cont = np.array(param_vec[:, 6] + mu * param_vec[:, 7]).reshape(-1, 1, 1)
+    noise_level = np.array(absolute_noise_levels).reshape(1, 1, 4)/cont
+    noise = noise_level * np.random.normal(size=noise_size)
+
+    return noise
 
 
 def _prepare_base_model_parameters(param_vec, line_vec, norm=True):

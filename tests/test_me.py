@@ -1,6 +1,7 @@
 import pytest
 from inverse_problem.milne_edington.me import HinodeME, me_model, _compute_spectrum, _prepare_base_model_parameters, \
-    _prepare_zero_model_parameters
+    _prepare_zero_model_parameters, generate_noise
+from inverse_problem import get_project_root
 import numpy as np
 from astropy.io import fits
 import os
@@ -57,18 +58,44 @@ class TestModelMe:
         B0, theta, xi, D, gamma, etta_0, S_0, S_1, Dop_shift0 = _prepare_zero_model_parameters(param_vec, line_vec)
         spectrum0 = _compute_spectrum(B0, theta, xi, D, gamma, etta_0, S_0, S_1, Dop_shift0, line_arg, line_vec)
         assert True
+    @pytest.fixture
+    def param_vec_0(self):
+        project_path = get_project_root()
+        filename = project_path / 'data' / 'parameters_base.fits'
+        param_vec = fits.open(filename)[0].data[:2]
+        return param_vec
 
-    def test_me_model(self):
+    def test_generate_noise(self, param_vec_0):
+        noise = generate_noise(param_vec_0)
+        assert noise.shape[0] == param_vec_0.shape[0]
+        assert noise.shape[1] == 56
+        assert noise.shape[2] ==4
+        noise = generate_noise(param_vec_0[0])
+        assert noise.shape[0] == 1
+        assert noise.shape[1] == 56
+        assert noise.shape[2] == 4
+
+    def test_me_model_no_noise(self):
         line_vec = (6302.5, 2.5, 1)
         line_arg = 1000 * (np.linspace(6302.0692255, 6303.2544205, 56) - line_vec[0])
         # with stray shift
         param_vec = [1000., 15., 20., 30., 1., 50., 0.5, 0.5, 0, 0.7, -9]
-        spectrum = me_model(param_vec, line_arg, line_vec, with_ff=False)
-        spectrum_ff = me_model(param_vec, line_arg, line_vec, with_ff=True)
+        spectrum = me_model(param_vec, line_arg, line_vec, with_ff=False, with_noise=False)
+        spectrum_ff = me_model(param_vec, line_arg, line_vec, with_ff=True, with_noise=False)
         expected_ff_I = [0.91103614, 0.90068347, 0.88866059]
         expected_ff_QUV = [0.00003492, 0.00002593, 0.00785174]
         assert expected_ff_I == pytest.approx(spectrum_ff[0, :3, 0], rel=1e-4)
         assert expected_ff_QUV == pytest.approx(spectrum_ff[0, 0, 1:4], rel=1e-3)
+
+    def test_me_model_with_noise(self, param_vec_0):
+        line_vec = (6302.5, 2.5, 1)
+        line_arg = 1000 * (np.linspace(6302.0692255, 6303.2544205, 56) - line_vec[0])
+        spectrum_no_noise = me_model(param_vec_0[0], line_arg, line_vec, with_ff=True, with_noise=False)
+        spectrum_with_noise = me_model(param_vec_0[0], line_arg, line_vec, with_ff=True, with_noise=True)
+        signal_to_noise = np.mean(spectrum_with_noise / spectrum_no_noise, axis=1)
+        assert np.mean(signal_to_noise, axis=1) < 1000
+
+
 
     def test_me_batch(self):
         parameters = np.array([[1000, 15, 20, 30, 1, 50, 0.5, 0.5, 0, 0.7, -9],
@@ -172,6 +199,8 @@ class TestHinodeME:
         parameter_base = fits.open(filename)[0].data
         obj = HinodeME.from_parameters_base(0, parameter_base)
         spectrum = obj.compute_spectrum(with_ff=True, with_noise=False)
+        spectrum_noised = obj.compute_spectrum(with_ff=True, with_noise=True)
+
         assert True
 
 
