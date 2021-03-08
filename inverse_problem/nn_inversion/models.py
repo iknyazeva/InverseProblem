@@ -1,19 +1,61 @@
-from .dataset import SpectrumDataset
-from .transforms import mlp_transform_rescale
 import json
 import torch.nn.functional as F
 import torch
-from torch import nn, cuda
-import os
+from torch import nn
 from pathlib import Path
-from torch.utils.data import DataLoader
 import attr
 
 
 @attr.s(slots=True)
 class HyperParams:
-    n_input = attr.ib(default=224)
-    bottom_output = attr.ib(default=40)
+    """
+    Attributes:
+    n_input: int, input size
+
+    predict_ind: list, parameters to predict
+
+    top_output: int, output size for top model, i.e. number of parameters to predict
+
+    transform_type: str, transformation type to be applied to data
+
+    mode:
+
+    logB: bool,
+
+    factors: list
+
+    cont_scale: int? continuum scale ?
+
+    norm_output: bool ?
+
+    source: str, where to get data from
+
+    hidden_size: int, hidden size for TopNet
+
+    dropout: float, dropout rate
+
+    bn: ?
+
+    top_net: str, name of top net
+
+    bottom_net: str, name of bottom net
+
+    activation: str, activation layer in top net
+
+    lr: float, learning rate for optimizer
+
+    lr_decay: learning rate decay for optimizer
+
+    weight_decay: weight rate decay for optimizer
+
+    batch_size: int, num of batches
+
+    n_epochs: int, num of epochs to train
+
+    per_epoch: int, num of examples to use while training
+    """
+    n_input = attr.ib(default=224) # ?
+    bottom_output = attr.ib(default=40) # ?
     predict_ind = attr.ib(default=[0, 1, 2])
     top_output = attr.ib(default=3)
     transform_type = attr.ib(default='mlp_transform_rescale')
@@ -39,6 +81,7 @@ class HyperParams:
 
     @classmethod
     def from_file(cls, path_to_json: Path):
+        """loads hyper params from json file"""
         with open(path_to_json) as json_file:
             params = json.loads(json_file.read())
             fields = {field.name for field in attr.fields(HyperParams)}
@@ -46,10 +89,11 @@ class HyperParams:
 
 
 class BaseNet(nn.Module):
+    """Parent class for all models"""
     def __init__(self, hps: HyperParams):
         """
         Args:
-            hps (nn.Module): class contains all hyperparameters
+            hps: hyperparameters class
         """
         super().__init__()
         self.hps = hps
@@ -57,8 +101,15 @@ class BaseNet(nn.Module):
 
 
 class FullModel(BaseNet):
+    """Creates full model using bottom and top nets"""
     def __init__(self, hps: HyperParams, bottom: BaseNet, top: BaseNet):
-        super(FullModel, self).__init__(hps)
+        """
+        Args:
+            hps (): HyperParams class
+            bottom (): Bottom net, the leading architecture
+            top (): TopNet, outer layer for all bottom models
+        """
+        super().__init__(hps)
         self.bottom = bottom(hps)
         self.top = top(hps)
 
@@ -70,33 +121,46 @@ class FullModel(BaseNet):
 
 
 class BottomSimpleMLPNet(BaseNet):
-    """ Two-layer MLP forward propagation concatenation, bottom layer, take plain input
+    """ Two-layer MLP forward propagation with dropout, bottom layer, takes plain input.
     """
 
     def __init__(self, hps: HyperParams):
-        super(BottomSimpleMLPNet, self).__init__(hps)
-
-        self.fc1 = nn.Linear(hps.n_input, hps.bottom_output)
+        super().__init__(hps)
+        self.fc1 = nn.Linear(hps.n_input, hps.hidden_size)
+        self.fc2 = nn.Linear(hps.hidden_size, hps.bottom_output)
+        self.dropout = nn.Dropout(hps.dropout)
 
     def forward(self, x):
-        x = self.activation(self.fc1(x))
+        x = self.dropout(self.activation(self.fc1(x)))
+        x = self.fc2(x)
         return x
 
 
 class BottomSimpleConv1d(BaseNet):
     def __init__(self, hps: HyperParams):
+        """
+        Two-layer 1D convolution net with average pooling and batch normalization.
+        Takes 4-channel inputs.
+
+        Args:
+            hps (): HyperParams class
+        """
         super().__init__(hps)
 
         self.conv1 = nn.Sequential(nn.Conv1d(4, 32, 5, padding=2),
                                    nn.AvgPool1d(2),
-                                   nn.ReLU())
+                                   nn.ReLU(),
+                                   nn.BatchNorm1d(32))
         self.conv2 = nn.Sequential(nn.Conv1d(32, 64, 5),
                                    nn.AvgPool1d(2),
-                                   nn.ReLU())
+                                   nn.ReLU(),
+                                   nn.BatchNorm1d(64))
         self.linear = nn.Sequential(nn.Linear(64 * 12, hps.bottom_output), nn.ReLU())
 
     def forward(self, x):
-        x = self.conv1(x)
+        # todo беды с размерностями, не проходит тесты
+        # с помощью permute все работает но нужно разобраться
+        x = self.conv1(x.squeeze().permute(0, 2, 1))
         x = self.conv2(x)
         x = x.view(x.size(0), -1)
         x = self.linear(x)
@@ -120,27 +184,3 @@ class TopNet(BaseNet):
         return x
 
 
-class Conv1dModel(BaseNet):
-    """ Two-layer 1D Convolution Network
-    """
-
-    def __init__(self, hps: HyperParams):
-        super().__init__(hps)
-        self.hps = hps
-        self.topnet = TopNet(hps)
-        self.conv1 = nn.Sequential(nn.Conv1d(4, 32, 2),
-                                   nn.MaxPool1d(2),
-                                   nn.ReLU())
-        self.conv2 = nn.Sequential(nn.Conv1d(32, 64, 2), nn.ELU())
-        self.linear = nn.Sequential(nn.Linear(64 * 26, 225), nn.ReLU())
-
-    def forward(self, x):
-        # x = x.unsqueeze(1)
-        x = x.permute(0, 2, 1)
-        x = self.conv1(x)
-        x = self.conv2(x)
-        # print(x.shape)
-        x = x.view(-1, 64 * 26)
-        x = self.linear(x)
-        x = self.topnet(x)
-        return x

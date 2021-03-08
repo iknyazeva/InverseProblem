@@ -77,6 +77,7 @@ class TestModels:
         assert True
 
     def test_bottom_simple_conv1_net(self, conv_x):
+        # todo не проходит тест
         hps = HyperParams()
         net = BottomSimpleConv1d(hps)
         out = net.forward(conv_x)
@@ -93,6 +94,7 @@ class TestModels:
         assert True
 
     def test_model_conv_stack(self, sample_conv_x):
+        # todo не проходит тест
         path_to_json = os.path.join(get_project_root(), 'res_experiments', 'hps_base_conv.json')
         hps = HyperParams.from_file(path_to_json=path_to_json)
         bottom = getattr(models, hps.bottom_net)

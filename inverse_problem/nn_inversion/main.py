@@ -8,6 +8,7 @@ from torch.utils.data import DataLoader
 from inverse_problem.nn_inversion.models import HyperParams, FullModel
 from inverse_problem.nn_inversion import models
 from inverse_problem.nn_inversion import transforms
+import numpy as np
 
 
 class Model:
@@ -39,6 +40,7 @@ class Model:
         self.net = FullModel(hps, self.bottom_net, self.top_net).to(self.device)
         self.optimizer = self._init_optimizer()
         self.transform = self._init_transform()
+        self.scheduler = self._init_scheduler()
 
     def _init_transform(self):
         """
@@ -69,13 +71,11 @@ class Model:
         return torch.optim.Adam(self.net.parameters(),
                                 lr=self.hps.lr, weight_decay=self.hps.weight_decay)
 
-    def predict(self, x):
-        # todo predict
-        pass
+    def _init_scheduler(self):
+        # todo добавить patience в hps?
+        return torch.optim.lr_scheduler.ReduceLROnPlateau(self.optimizer, patience=3, verbose=True)
 
     def fit_step(self, sample_batch):
-        """To be used in train()"""
-        # todo only work for simple model, need to refactor later
         train_loss = 0.0
         train_it = 0
         for i, inputs in enumerate(sample_batch):
@@ -93,7 +93,6 @@ class Model:
         return train_loss / train_it
 
     def eval_step(self, sample_batch):
-        """To be used in train()"""
         self.net.eval()
         val_loss = 0.0
         val_it = 0
@@ -126,14 +125,18 @@ class Model:
                                               transform=self.transform, ff=ff, noise=noise)
         return DataLoader(transformed_dataset, batch_size=self.hps.batch_size, shuffle=True)
 
-    def train(self, filename: Path = None, model_path: Path = None, ff=True, noise=True):
+    def train(self, filename=None, save_model=False, path_to_save=None, save_epoch=[], ff=True, noise=True, scheduler=False):
         """
             Function for model training
         Args:
+            save_model (bool): whether to save checkpoint, if True saves every best validation loss by default
+            path_to_save (str):
+            save_epoch (list of ints): save checkpoint every given epoch
+            scheduler (): whether to use scheduler
             filename (): str, Optional; Path where to load data from
             model_path (): str, Optional; Path to save model to
-            noise ():
-            ff ():
+            noise (): whether to use noise
+            ff (): whether to use ff
 
         Returns:
             List, training process history
@@ -144,15 +147,92 @@ class Model:
         history = []
         log_template = "\nEpoch {ep:03d} train_loss: {t_loss:0.4f} \
          val_loss {v_loss:0.4f}"
-        train_loss = float('inf')
-        val_loss = float('inf')
+
         with tqdm(desc="epoch", total=self.hps.n_epochs) as pbar_outer:
             for epoch in range(self.hps.n_epochs):
                 train_loss = self.fit_step(train_loader)
                 val_loss = self.eval_step(val_loader)
                 history.append((train_loss, val_loss))
 
+                if scheduler:
+                    self.scheduler.step(val_loss)
+
+                if save_model:
+                    if save_epoch:
+                        # todo чтобы каждый чекпоинт сохранялся в свой файл
+                        if epoch in save_epoch:
+                            self.save_model(path_to_save, epoch, val_loss)
+                    elif val_loss < best_valid_loss:
+                        best_valid_loss = val_loss
+                        self.save_model(path_to_save, epoch, val_loss)
+
+                #if tensorboard:
+                    #with train_summary_writer.as_default():
+                        #tf.summary.scalar('loss', loss.item(), step=globaliter)
+
+
                 pbar_outer.update(1)
                 tqdm.write(log_template.format(ep=epoch + 1, t_loss=train_loss,
                                                v_loss=val_loss))
         return history
+
+    def _init_tensorboard(self):
+        pass
+
+    def save_model(self, path, epoch, loss):
+        torch.save({
+            'epoch': epoch,
+            'model_state_dict': self.net.state_dict(),
+            'optimizer_state_dict': self.optimizer.state_dict(),
+            'loss': loss}, path)
+
+    def continue_training(self, checkpoint_path, **kwargs):
+        """
+        Loads model from checkpoint and continues training
+        Args:
+            checkpoint_path (str): path to load checkpoint from
+            **kwargs (): args from train()
+
+        """
+        checkpoint = torch.load(checkpoint_path)
+        self.net.load_state_dict(checkpoint['model_state_dict'])
+        self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        epoch = checkpoint['epoch']
+        loss = checkpoint['loss']
+        print('model saved at {} epoch with {} validation loss'.format(epoch+1, loss))
+        self.train(**kwargs)
+
+    def load_model(self, checkpoint_path):
+        self.net.load_state_dict(torch.load(checkpoint_path)['model_state_dict'])
+
+    def predict_one_pixel(self, x):
+        """ Predicts one pixel
+        Args:
+            x: list of torch.tensors where [0] - spectrum lines (1, 512, 224)
+                [1] - cont
+        Returns: torch.tensor of shape (512, n), n - number of predicted parameters
+
+        """
+        line = torch.FloatTensor(x[0])[0]
+        cont = torch.FloatTensor(x[1])
+        self.net.eval()
+        with torch.no_grad():
+            predicted = self.net((line, cont))
+        return predicted
+
+    def predict_full_image(self, x, parameter):
+        """ Predicts full image
+        Args:
+            x (tuple): [0] array of size (n, 512), [1] continuum vector;
+            parameter (int): index of parameter to predict
+        """
+        line = torch.FloatTensor(x[0])
+        cont = torch.FloatTensor(x[1])
+        output = np.zeros(line.shape[:2])
+        self.net.eval()
+        with torch.no_grad():
+            for i in range(line.shape[0]):
+                predicted = self.net((line[i], cont))
+                output[i] = predicted[:, parameter]
+        return output
+
