@@ -1,12 +1,12 @@
 import pytest
 from inverse_problem.milne_edington.me import HinodeME, me_model, _compute_spectrum, _prepare_base_model_parameters, \
-    _prepare_zero_model_parameters, generate_noise
+    _prepare_zero_model_parameters, generate_noise, read_full_spectra
 from inverse_problem import get_project_root
 import numpy as np
 from astropy.io import fits
 import os
 from pathlib import Path
-
+from astropy.io import fits
 
 # todo test parameters checking from AboutParameters
 
@@ -58,6 +58,7 @@ class TestModelMe:
         B0, theta, xi, D, gamma, etta_0, S_0, S_1, Dop_shift0 = _prepare_zero_model_parameters(param_vec, line_vec)
         spectrum0 = _compute_spectrum(B0, theta, xi, D, gamma, etta_0, S_0, S_1, Dop_shift0, line_arg, line_vec)
         assert True
+
     @pytest.fixture
     def param_vec_0(self):
         project_path = get_project_root()
@@ -95,8 +96,6 @@ class TestModelMe:
         signal_to_noise = np.mean(spectrum_with_noise / spectrum_no_noise, axis=1)
         assert np.mean(signal_to_noise, axis=1) < 1000
 
-
-
     def test_me_batch(self):
         parameters = np.array([[1000, 15, 20, 30, 1, 50, 0.5, 0.5, 0, 0.7, -9],
                                [1000, 15, 20, 30, 1, 50, 0.5, 0.5, 0, 0.7, -4.25],
@@ -104,7 +103,7 @@ class TestModelMe:
 
         line_vec = (6302.5, 2.5, 1)
         line_arg = 1000 * (np.linspace(6302.0692255, 6303.2544205, 56) - line_vec[0])
-        spectrum = me_model(parameters, line_arg, line_vec, with_ff=True)
+        spectrum = me_model(parameters, line_arg, line_vec, with_ff=True, with_noise=False)
         expected_I = [0.91103614, 0.92981541, 0.93938165]
         expected_QUV = [0.00003492, 0.00002593, 0.00785174]
         assert expected_I == pytest.approx(spectrum[:, 0, 0])
@@ -113,6 +112,7 @@ class TestModelMe:
 
 
 class TestHinodeME:
+    # todo не проходит некоторые тесты из-за assertion
     def test_compute_spectrum_zero(self):
         param_vec = [0., 15., 20., 30., 1., 50., 0.5, 0.5, 0., 1., 0.]
 
@@ -129,13 +129,13 @@ class TestHinodeME:
                                -0,
                                -0])
         assert isinstance(spectrum, np.ndarray)
-        assert spectrum.shape == (56, 4)
+        assert spectrum.shape == (1, 56, 4)
         assert expected_I == pytest.approx(spectrum[:5, 0])
         assert expected_V == pytest.approx(spectrum[:5, 1])
 
         spectrum_ff = obj.compute_spectrum(with_ff=True, with_noise=False)
         assert isinstance(spectrum, np.ndarray)
-        assert spectrum_ff.shape == (56, 4)
+        assert spectrum_ff.shape == (1, 56, 4)
         assert expected_I == pytest.approx(spectrum_ff[:5, 0])
         assert expected_V == pytest.approx(spectrum_ff[:5, 1])
 
@@ -155,14 +155,14 @@ class TestHinodeME:
                                0.00013955,
                                0.00017127])
         assert isinstance(spectrum, np.ndarray)
-        assert spectrum.shape == (56, 4)
+        assert spectrum.shape == (1, 56, 4)
         assert expected_I == pytest.approx(spectrum[:5, 0], rel=1e-4)
         assert expected_V == pytest.approx(spectrum[:5, 1], rel=1e-4)
 
         spectrum_ff = obj.compute_spectrum(with_ff=True, with_noise=False)
 
         assert isinstance(spectrum_ff, np.ndarray)
-        assert spectrum_ff.shape == (56, 4)
+        assert spectrum_ff.shape == (1, 56, 4)
         assert expected_I == pytest.approx(spectrum_ff[:5, 0], rel=1e-4)
         assert expected_V == pytest.approx(spectrum_ff[:5, 1], rel=1e-4)
 
@@ -182,17 +182,17 @@ class TestHinodeME:
                                0.00002207,
                                0.00002711])
         assert isinstance(spectrum, np.ndarray)
-        assert spectrum.shape == (56, 4)
+        assert spectrum.shape == (1, 56, 4)
         assert expected_I == pytest.approx(spectrum[:5, 0], rel=1e-4)
         assert expected_V == pytest.approx(spectrum[:5, 1], rel=1e-3)
         assert True
 
-    # def test_from_refer(self):
-    # filename = '/Users/irinaknyazeva/Projects/Solar/hinode_source/20140926_170005.fits'
-    # refer = fits.open(filename)
-    # obj = HinodeME.from_refer(100, 200, refer)
-    # spectrum = obj.compute_spectrum(with_ff=True, with_noise=False)
-    # assert spectrum.shape == (56, 4)
+    def test_from_refer(self):
+        filename = Path(os.getcwd()).parent / 'data' / "20170905_030404.fits"
+        refer = fits.open(filename)
+        obj = HinodeME.from_refer(100, 200, refer)
+        spectrum = obj.compute_spectrum(with_ff=True, with_noise=False)
+        assert spectrum.shape == (1, 56, 4)
 
     def test_from_parameters_base(self):
         filename = Path(os.getcwd()).parent / 'data' / 'parameters_base.fits'
@@ -200,13 +200,11 @@ class TestHinodeME:
         obj = HinodeME.from_parameters_base(0, parameter_base)
         spectrum = obj.compute_spectrum(with_ff=True, with_noise=False)
         spectrum_noised = obj.compute_spectrum(with_ff=True, with_noise=True)
-
         assert True
 
-
-    def test_noise(self):
-        param_vec = [1250., 15., 20., 30., 1., 50., 0.5, 0.5, 0., 1., 0.]
-        hinode = HinodeME(param_vec)
-        noised = hinode.compute_spectrum()
+    def test_read_full_spectra(self):
+        path_to_data = os.path.join(get_project_root(), 'data', '20170905_030404\\')
+        full_spectra = read_full_spectra(path_to_data)
         assert True
+
 

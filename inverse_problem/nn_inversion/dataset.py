@@ -13,7 +13,6 @@ class SpectrumDataset(Dataset):
     """
 
     # todo update for download option
-    # todo noise generation
     def __init__(self, param_path: Path,
                  source='database', transform: Callable = None, download: bool = False,
                  ff: bool = True, noise: bool = True):
@@ -42,7 +41,7 @@ class SpectrumDataset(Dataset):
         if self.source == 'database':
             param_len = self.param_source.shape[0]
         else:
-            param_len = self.param_source.data.size
+            param_len = self.param_source.data[1].size
 
         return param_len
 

@@ -1,6 +1,9 @@
 import scipy
 import scipy.special
 import numpy as np
+import os
+import astropy.io.fits as fits
+from tqdm import tqdm
 
 c = 3e10
 mass = 9.1e-28
@@ -55,6 +58,7 @@ class HinodeME(object):
 
     @classmethod
     def from_refer(cls, idx_0, idx_1, refer):
+        # todo может быть добавить функцию чтения всего спектра?
         # from fits file with maps for each parameters 512(idx_0)*873 (idx_1)
         assert (idx_0 >= 0) and (idx_1 < 512), 'Index should be less than 512 and greater than 0 '
         assert (idx_1 >= 0) and (idx_1 < 873), 'Index should be less than 872 and greater than 0 '
@@ -280,3 +284,31 @@ def _compute_spectrum(B, theta, xi, D, gamma, etta_0, S_0, S_1, Dop_shift, line_
             k_Q * f_Q + k_U * f_U + k_V * f_V))
 
     return np.transpose(np.array([I, Q, U, V]))
+
+
+def read_full_spectra(files_path):
+    files = os.listdir(files_path)
+    files_list = [files_path + i for i in files]
+    X_len = len(files_list)
+    Y_len = 512
+    full_spectra = np.empty((X_len, Y_len, 4 * 56))
+    normalization_map = np.empty((X_len, Y_len))
+
+    for X_count in tqdm(range(X_len)):
+        spectra_file = fits.open(files_list[X_count])
+
+        real_I = spectra_file[0].data[0][:, 56:].astype('float64') * 2
+        real_Q = spectra_file[0].data[1][:, 56:].astype('float64') * 3
+        real_U = spectra_file[0].data[2][:, 56:].astype('float64') * 3
+        real_V = spectra_file[0].data[3][:, 56:].astype('float64') * 3
+
+        real_sp = np.concatenate((real_I, real_Q, real_U, real_V), axis=1)
+
+        normalization = np.reshape(np.max(real_sp, axis=1), (-1, 1))
+        real_sp /= normalization
+
+        normalization_map[X_count] = normalization.flatten()
+
+        full_spectra[X_count] = real_sp
+
+    return full_spectra, normalization
