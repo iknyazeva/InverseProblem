@@ -77,6 +77,8 @@ class HyperParams:
     batch_size = attr.ib(default=20)
     n_epochs = attr.ib(default=5)
     per_epoch = attr.ib(default=10)
+    patience = attr.ib(default=3)
+    absolute_noise_levels = attr.ib(default=[109, 28, 28, 44])
 
 
     @classmethod
@@ -147,11 +149,11 @@ class BottomSimpleConv1d(BaseNet):
         """
         super().__init__(hps)
 
-        self.conv1 = nn.Sequential(nn.Conv1d(4, 32, 5, padding=2),
+        self.conv1 = nn.Sequential(nn.Conv1d(56, 64, 5, padding=2),
                                    nn.AvgPool1d(2),
                                    nn.ReLU(),
-                                   nn.BatchNorm1d(32))
-        self.conv2 = nn.Sequential(nn.Conv1d(32, 64, 5),
+                                   nn.BatchNorm1d(64))
+        self.conv2 = nn.Sequential(nn.Conv1d(64, 64, 5),
                                    nn.AvgPool1d(2),
                                    nn.ReLU(),
                                    nn.BatchNorm1d(64))
@@ -160,7 +162,7 @@ class BottomSimpleConv1d(BaseNet):
     def forward(self, x):
         # todo беды с размерностями, не проходит тесты
         # с помощью permute все работает но нужно разобраться
-        x = self.conv1(x.squeeze().permute(0, 2, 1))
+        x = self.conv1(x.squeeze())
         x = self.conv2(x)
         x = x.view(x.size(0), -1)
         x = self.linear(x)
@@ -184,3 +186,20 @@ class TopNet(BaseNet):
         return x
 
 
+class FullModel_no_cont(BaseNet):
+    """Creates full model using bottom and top nets"""
+    def __init__(self, hps: HyperParams, bottom: BaseNet, top: BaseNet):
+        """
+        Args:
+            hps (): HyperParams class
+            bottom (): Bottom net, the leading architecture
+            top (): TopNet, outer layer for all bottom models
+        """
+        super().__init__(hps)
+        self.bottom = bottom(hps)
+        self.top = top(hps)
+
+    def forward(self, sample_x):
+        x = self.bottom(sample_x)
+        x = self.top(x)
+        return x

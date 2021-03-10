@@ -82,7 +82,8 @@ class Model:
             if self.hps.per_epoch == i:
                 break
             self.optimizer.zero_grad()
-            x = [inputs['X'][0].to(self.device), inputs['X'][1].to(self.device)]
+            x = inputs['X'][0].to(self.device) #, inputs['X'][1].to(self.device)]
+            # print(x.shape)
             y = inputs['Y'][:, self.hps.predict_ind].to(self.device)
             outputs = self.net(x)
             loss = self.criterion(outputs, y)
@@ -99,7 +100,8 @@ class Model:
         for i, inputs in enumerate(sample_batch):
             if self.hps.per_epoch == i:
                 break
-            x = [inputs['X'][0].to(self.device), inputs['X'][1].to(self.device)]
+            x = inputs['X'][0].to(self.device) #, inputs['X'][1].to(self.device)]
+
             y = inputs['Y'][:, self.hps.predict_ind].to(self.device)
             with torch.no_grad():
                 outputs = self.net(x)
@@ -179,7 +181,17 @@ class Model:
     def _init_tensorboard(self):
         pass
 
-    def save_model(self, path, epoch, loss):
+    def save_model(self, path, epoch=None, loss=None):
+        """
+
+        Args:
+            path (str): path to save model to
+            epoch (int): optional
+            loss (float): optional, validation loss
+
+        Returns:
+
+        """
         torch.save({
             'epoch': epoch,
             'model_state_dict': self.net.state_dict(),
@@ -199,8 +211,10 @@ class Model:
         self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
         epoch = checkpoint['epoch']
         loss = checkpoint['loss']
-        print('model saved at {} epoch with {} validation loss'.format(epoch+1, loss))
+        if epoch and loss:
+            print('model was saved at {} epoch with {} validation loss'.format(epoch+1, loss))
         self.train(**kwargs)
+        # todo беда с номером эпохи
 
     def load_model(self, checkpoint_path):
         self.net.load_state_dict(torch.load(checkpoint_path)['model_state_dict'])
