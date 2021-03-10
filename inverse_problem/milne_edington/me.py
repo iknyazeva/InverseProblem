@@ -58,7 +58,6 @@ class HinodeME(object):
 
     @classmethod
     def from_refer(cls, idx_0, idx_1, refer):
-        # todo может быть добавить функцию чтения всего спектра?
         # from fits file with maps for each parameters 512(idx_0)*873 (idx_1)
         assert (idx_0 >= 0) and (idx_1 < 512), 'Index should be less than 512 and greater than 0 '
         assert (idx_1 >= 0) and (idx_1 < 873), 'Index should be less than 872 and greater than 0 '
@@ -311,4 +310,4 @@ def read_full_spectra(files_path):
 
         full_spectra[X_count] = real_sp
 
-    return full_spectra, normalization
+    return full_spectra, normalization/50000

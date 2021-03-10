@@ -38,6 +38,7 @@ class Model:
         self.top_net = getattr(models, hps.top_net)
         self.bottom_net = getattr(models, hps.bottom_net)
         self.net = FullModel(hps, self.bottom_net, self.top_net).to(self.device)
+        self.alpha = 0.00001
         self.optimizer = self._init_optimizer()
         self.transform = self._init_transform()
         self.scheduler = self._init_scheduler()
@@ -82,7 +83,7 @@ class Model:
             if self.hps.per_epoch == i:
                 break
             self.optimizer.zero_grad()
-            x = inputs['X'][0].to(self.device) #, inputs['X'][1].to(self.device)]
+            x = [inputs['X'][0].to(self.device), inputs['X'][1].to(self.device)]
             # print(x.shape)
             y = inputs['Y'][:, self.hps.predict_ind].to(self.device)
             outputs = self.net(x)
@@ -100,8 +101,7 @@ class Model:
         for i, inputs in enumerate(sample_batch):
             if self.hps.per_epoch == i:
                 break
-            x = inputs['X'][0].to(self.device) #, inputs['X'][1].to(self.device)]
-
+            x = [inputs['X'][0].to(self.device), inputs['X'][1].to(self.device)]
             y = inputs['Y'][:, self.hps.predict_ind].to(self.device)
             with torch.no_grad():
                 outputs = self.net(x)
@@ -127,7 +127,8 @@ class Model:
                                               transform=self.transform, ff=ff, noise=noise)
         return DataLoader(transformed_dataset, batch_size=self.hps.batch_size, shuffle=True)
 
-    def train(self, filename=None, save_model=False, path_to_save=None, save_epoch=[], ff=True, noise=True, scheduler=False):
+    def train(self, filename=None, save_model=False, path_to_save=None, save_epoch=[],
+              ff=True, noise=True, scheduler=False):
         """
             Function for model training
         Args:
@@ -248,5 +249,5 @@ class Model:
             for i in range(line.shape[0]):
                 predicted = self.net((line[i], cont))
                 output[i] = predicted[:, parameter]
-        return output
+        return output.T
 

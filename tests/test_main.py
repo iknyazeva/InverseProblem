@@ -91,4 +91,4 @@ class TestMain:
         filename = os.path.join(get_project_root(), 'data', '20170905_030404\\')
         line, cont = read_full_spectra(filename)
         predicted = model.predict_full_image((line, cont), 0)
-        assert predicted.shape == (line.shape[0], 512)
+        assert predicted.shape == (512, line.shape[0])
