@@ -55,6 +55,8 @@ class TestMain:
         hps = HyperParams.from_file(path_to_json=path_to_json)
         hps.per_epoch = 10
         model = Model(hps)
+        x = model.make_loader()
+        x_ = next(iter(x))
         history = model.train()
         assert history[0][0] > 0
 

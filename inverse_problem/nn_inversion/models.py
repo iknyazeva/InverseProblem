@@ -142,28 +142,27 @@ class BottomSimpleConv1d(BaseNet):
     def __init__(self, hps: HyperParams):
         """
         Two-layer 1D convolution net with average pooling and batch normalization.
-        Takes 4-channel inputs.
+        Takes 56-channel inputs.
 
         Args:
             hps (): HyperParams class
         """
         super().__init__(hps)
 
-        self.conv1 = nn.Sequential(nn.Conv1d(56, 64, 5, padding=2),
+        self.conv1 = nn.Sequential(nn.Conv1d(56, 64, 2, padding=2),
                                    nn.AvgPool1d(2),
                                    nn.ReLU(),
                                    nn.BatchNorm1d(64))
-        self.conv2 = nn.Sequential(nn.Conv1d(64, 64, 5),
+        self.conv2 = nn.Sequential(nn.Conv1d(64, 128, 2),
                                    nn.AvgPool1d(2),
                                    nn.ReLU(),
-                                   nn.BatchNorm1d(64))
-        self.linear = nn.Sequential(nn.Linear(64 * 12, hps.bottom_output), nn.ReLU())
+                                   nn.BatchNorm1d(128))
+        self.linear = nn.Sequential(nn.Linear(128, hps.bottom_output), nn.ReLU())
 
     def forward(self, x):
-        # todo беды с размерностями, не проходит тесты
-        # с помощью permute все работает но нужно разобраться
         x = self.conv1(x.squeeze())
         x = self.conv2(x)
+        # print(x.shape)
         x = x.view(x.size(0), -1)
         x = self.linear(x)
         return x
@@ -185,21 +184,3 @@ class TopNet(BaseNet):
         x = self.fc2(x)
         return x
 
-
-class FullModel_no_cont(BaseNet):
-    """Creates full model using bottom and top nets"""
-    def __init__(self, hps: HyperParams, bottom: BaseNet, top: BaseNet):
-        """
-        Args:
-            hps (): HyperParams class
-            bottom (): Bottom net, the leading architecture
-            top (): TopNet, outer layer for all bottom models
-        """
-        super().__init__(hps)
-        self.bottom = bottom(hps)
-        self.top = top(hps)
-
-    def forward(self, sample_x):
-        x = self.bottom(sample_x)
-        x = self.top(x)
-        return x
