@@ -179,10 +179,10 @@ def mlp_transform_rescale(**kwargs) -> Callable:
 
 class ToConv1d(object):
     """Prepare X and y for conv 1d model"""
-
+# todo изменить swapaxis
     def __call__(self, sample):
         (spectrum, cont), params = sample['X'], sample['Y']
-        spectrum = np.swapaxes(spectrum, 0, 1)
+        spectrum = np.swapaxes(spectrum, 1, 2)
         return {'X': (spectrum, cont),
                 'Y': params}
 

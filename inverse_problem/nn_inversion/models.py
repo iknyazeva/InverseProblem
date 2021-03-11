@@ -149,15 +149,15 @@ class BottomSimpleConv1d(BaseNet):
         """
         super().__init__(hps)
 
-        self.conv1 = nn.Sequential(nn.Conv1d(56, 64, 2, padding=2),
+        self.conv1 = nn.Sequential(nn.Conv1d(4, 32, 2, padding=2),
+                                   nn.AvgPool1d(2),
+                                   nn.ReLU(),
+                                   nn.BatchNorm1d(32))
+        self.conv2 = nn.Sequential(nn.Conv1d(32, 64, 2),
                                    nn.AvgPool1d(2),
                                    nn.ReLU(),
                                    nn.BatchNorm1d(64))
-        self.conv2 = nn.Sequential(nn.Conv1d(64, 128, 2),
-                                   nn.AvgPool1d(2),
-                                   nn.ReLU(),
-                                   nn.BatchNorm1d(128))
-        self.linear = nn.Sequential(nn.Linear(128, hps.bottom_output), nn.ReLU())
+        self.linear = nn.Sequential(nn.Linear(64*14, hps.bottom_output), nn.ReLU())
 
     def forward(self, x):
         x = self.conv1(x.squeeze())
