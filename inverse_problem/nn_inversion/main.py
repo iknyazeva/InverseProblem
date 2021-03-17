@@ -1,5 +1,6 @@
 from .dataset import SpectrumDataset
 import torch
+from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 from torch import nn
 import os
@@ -42,6 +43,7 @@ class Model:
         self.optimizer = self._init_optimizer()
         self.transform = self._init_transform()
         self.scheduler = self._init_scheduler()
+        self.tensorboard_writer = SummaryWriter()
 
     def _init_transform(self):
         """
@@ -128,10 +130,11 @@ class Model:
         return DataLoader(transformed_dataset, batch_size=self.hps.batch_size, shuffle=True)
 
     def train(self, filename=None, save_model=False, path_to_save=None, save_epoch=[],
-              ff=True, noise=True, scheduler=False):
+              ff=True, noise=True, scheduler=False, tensorboard=False):
         """
             Function for model training
         Args:
+
             save_model (bool): whether to save checkpoint, if True saves every best validation loss by default
             path_to_save (str):
             save_epoch (list of ints): save checkpoint every given epoch
@@ -140,6 +143,7 @@ class Model:
             model_path (): str, Optional; Path to save model to
             noise (): whether to use noise
             ff (): whether to use ff
+            tensorboard ():
 
         Returns:
             List, training process history
@@ -169,18 +173,15 @@ class Model:
                         best_valid_loss = val_loss
                         self.save_model(path_to_save, epoch, val_loss)
 
-                #if tensorboard:
-                    #with train_summary_writer.as_default():
-                        #tf.summary.scalar('loss', loss.item(), step=globaliter)
-
+                if tensorboard:
+                    self.tensorboard_writer.add_scalar("Loss/train", train_loss, epoch)
+                    self.tensorboard_writer.add_scalar("Loss/val", val_loss, epoch)
 
                 pbar_outer.update(1)
                 tqdm.write(log_template.format(ep=epoch + 1, t_loss=train_loss,
                                                v_loss=val_loss))
         return history
 
-    def _init_tensorboard(self):
-        pass
 
     def save_model(self, path, epoch=None, loss=None):
         """
@@ -207,18 +208,18 @@ class Model:
             **kwargs (): args from train()
 
         """
-        checkpoint = torch.load(checkpoint_path)
+        checkpoint = torch.load(checkpoint_path, map_location=self.device)
         self.net.load_state_dict(checkpoint['model_state_dict'])
         self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
         epoch = checkpoint['epoch']
         loss = checkpoint['loss']
         if epoch and loss:
-            print('model was saved at {} epoch with {} validation loss'.format(epoch+1, loss))
+            print('model was saved at {} epoch with {} validation loss'.format(epoch, loss))
         self.train(**kwargs)
         # todo беда с номером эпохи
 
     def load_model(self, checkpoint_path):
-        self.net.load_state_dict(torch.load(checkpoint_path)['model_state_dict'])
+        self.net.load_state_dict(torch.load(checkpoint_path, map_location=self.device)['model_state_dict'])
 
     def predict_one_pixel(self, x):
         """ Predicts one pixel
@@ -228,8 +229,8 @@ class Model:
         Returns: torch.tensor of shape (512, n), n - number of predicted parameters
 
         """
-        line = torch.FloatTensor(x[0])[0]
-        cont = torch.FloatTensor(x[1])
+        line = torch.FloatTensor(x[0])[0].to(self.device)
+        cont = torch.FloatTensor(x[1]).to(self.device)
         self.net.eval()
         with torch.no_grad():
             predicted = self.net((line, cont))
@@ -241,8 +242,8 @@ class Model:
             x (tuple): [0] array of size (n, 512), [1] continuum vector;
             parameter (int): index of parameter to predict
         """
-        line = torch.FloatTensor(x[0])
-        cont = torch.FloatTensor(x[1])
+        line = torch.FloatTensor(x[0]).to(self.device)
+        cont = torch.FloatTensor(x[1]).to(self.device)
         output = np.zeros(line.shape[:2])
         self.net.eval()
         with torch.no_grad():

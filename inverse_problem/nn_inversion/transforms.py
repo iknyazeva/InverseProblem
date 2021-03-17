@@ -169,7 +169,7 @@ def mlp_transform_rescale(**kwargs) -> Callable:
     allowed_kwargs = {'factors', 'cont_scale', 'norm_output', 'logB', 'mode'}
     for key in kwargs:
         if key not in allowed_kwargs:
-            raise ЛунError(f'{key} not in allowed keywords: factor, cont_scale')
+            raise KeyError(f'{key} not in allowed keywords: factor, cont_scale')
 
     rescale = Rescale(**kwargs)
     flat = FlattenSpectrum()
@@ -179,7 +179,6 @@ def mlp_transform_rescale(**kwargs) -> Callable:
 
 class ToConv1d(object):
     """Prepare X and y for conv 1d model"""
-# todo изменить swapaxis
     def __call__(self, sample):
         (spectrum, cont), params = sample['X'], sample['Y']
         spectrum = np.swapaxes(spectrum, 1, 2)
