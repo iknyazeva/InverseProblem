@@ -248,7 +248,7 @@ class Model:
         self.net.eval()
         with torch.no_grad():
             for i in range(line.shape[0]):
-                predicted = self.net((line[i], cont))
+                predicted = self.net((line[i], cont)).cpu()
                 output[i] = predicted[:, parameter]
         return output.T
 
