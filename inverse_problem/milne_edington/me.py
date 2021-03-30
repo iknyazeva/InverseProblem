@@ -285,16 +285,14 @@ def _compute_spectrum(B, theta, xi, D, gamma, etta_0, S_0, S_1, Dop_shift, line_
     return np.transpose(np.array([I, Q, U, V]))
 
 
-def read_real_spectrum(files_path):
-    pass
-
-
-def read_full_spectra(files_path=None, flist=None):
+def read_full_spectra(cont_scale, files_path=None, flist=None):
     """
 
     Args:
-        files_path (): optional, path to folder with files
-        flist (): optional, list with paths to files
+        cont_scale: cont_scale which is used during model training
+        one of:
+            files_path (): path to folder with files
+            flist (): list with paths to files
 
     Returns:
         full spectra, continuum
@@ -327,4 +325,4 @@ def read_full_spectra(files_path=None, flist=None):
 
         full_spectra[X_count] = real_sp
 
-    return full_spectra, normalization/normalization.max()
+    return full_spectra, normalization/cont_scale
