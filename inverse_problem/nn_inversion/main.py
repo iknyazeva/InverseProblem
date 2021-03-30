@@ -1,4 +1,4 @@
-from .dataset import SpectrumDataset
+from inverse_problem.nn_inversion.dataset import SpectrumDataset
 import torch
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
@@ -43,7 +43,6 @@ class Model:
         self.optimizer = self._init_optimizer()
         self.transform = self._init_transform()
         self.scheduler = self._init_scheduler()
-        self.tensorboard_writer = SummaryWriter()
 
     def _init_transform(self):
         """
@@ -77,6 +76,9 @@ class Model:
     def _init_scheduler(self):
         # todo добавить patience в hps?
         return torch.optim.lr_scheduler.ReduceLROnPlateau(self.optimizer, patience=3, verbose=True)
+
+    def _init_tensorboard(self, logdir=None, comment=''):
+        return SummaryWriter(log_dir=logdir, comment=comment)
 
     def fit_step(self, sample_batch):
         train_loss = 0.0
@@ -130,7 +132,7 @@ class Model:
         return DataLoader(transformed_dataset, batch_size=self.hps.batch_size, shuffle=True)
 
     def train(self, filename=None, save_model=False, path_to_save=None, save_epoch=[],
-              ff=True, noise=True, scheduler=False, tensorboard=False):
+              ff=True, noise=True, scheduler=False, tensorboard=False, logdir=None, comment=''):
         """
             Function for model training
         Args:
@@ -174,6 +176,7 @@ class Model:
                         self.save_model(path_to_save, epoch, val_loss)
 
                 if tensorboard:
+                    self.tensorboard_writer = self._init_tensorboard(logdir, comment)
                     self.tensorboard_writer.add_scalar("Loss/train", train_loss, epoch)
                     self.tensorboard_writer.add_scalar("Loss/val", val_loss, epoch)
 
@@ -181,7 +184,6 @@ class Model:
                 tqdm.write(log_template.format(ep=epoch + 1, t_loss=train_loss,
                                                v_loss=val_loss))
         return history
-
 
     def save_model(self, path, epoch=None, loss=None):
         """
@@ -251,4 +253,10 @@ class Model:
                 predicted = self.net((line[i], cont)).cpu()
                 output[i] = predicted[:, parameter]
         return output.T
+
+    def tensorboard_flush(self):
+        self.tensorboard_writer.flush()
+
+    def tensorboard_close(self):
+        self.tensorboard_writer.close()
 

@@ -2,6 +2,7 @@ import json
 import torch.nn.functional as F
 import torch
 from torch import nn
+import torchvision
 from pathlib import Path
 import attr
 
@@ -164,6 +165,21 @@ class BottomSimpleConv1d(BaseNet):
         x = self.conv2(x)
         # print(x.shape)
         x = x.view(x.size(0), -1)
+        x = self.linear(x)
+        return x
+
+
+class BottomResNet(BaseNet):
+    def __init__(self, hps: HyperParams):
+        super().__init__(hps)
+        self.resnet = torchvision.models.resnet18()
+        self.resnet.conv1 = nn.Conv2d(4, 64, kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), bias=False)
+        self.linear = nn.Sequential(nn.Linear(1000, hps.bottom_output), nn.ReLU())
+
+    def forward(self, x):
+        x = self.resnet(x.permute(0, 2, 1, 3))
+        #print(x.shape)
+        x = x.view(-1, 1000)
         x = self.linear(x)
         return x
 

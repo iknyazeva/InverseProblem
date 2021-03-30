@@ -3,7 +3,7 @@ import pytest
 import os
 from inverse_problem import get_project_root
 from inverse_problem.nn_inversion.models import HyperParams
-from inverse_problem.nn_inversion.models import BaseNet, BottomSimpleMLPNet, FullModel, BottomSimpleConv1d
+from inverse_problem.nn_inversion.models import BaseNet, BottomSimpleMLPNet, FullModel, BottomSimpleConv1d, BottomResNet
 from inverse_problem.nn_inversion.main import Model
 from inverse_problem.nn_inversion import models
 
@@ -83,7 +83,6 @@ class TestModels:
         out = net.forward(conv_x)
         assert True
 
-
     def test_model_mlp_stack(self, sample_x):
         path_to_json = os.path.join(get_project_root(), 'res_experiments', 'hps_base_mlp.json')
         hps = HyperParams.from_file(path_to_json=path_to_json)
@@ -97,6 +96,24 @@ class TestModels:
         path_to_json = os.path.join(get_project_root(), 'res_experiments', 'hps_base_conv.json')
         hps = HyperParams.from_file(path_to_json=path_to_json)
         bottom = getattr(models, hps.bottom_net)
+        top = getattr(models, hps.top_net)
+        model = Model(hps)
+        x = model.make_loader()
+        x_ = next(iter(x))
+        net = FullModel(hps, bottom, top)
+        out = net(x_['X'])
+        assert True
+
+    def test_resnet(self, conv_x):
+        hps = HyperParams()
+        net = BottomResNet(hps)
+        out = net.forward(conv_x.unsqueeze(2))
+        assert True
+
+    def test_resnet_stack(self, sample_conv_x):
+        path_to_json = os.path.join(get_project_root(), 'res_experiments', 'hps_base_conv.json')
+        hps = HyperParams.from_file(path_to_json=path_to_json)
+        bottom = getattr(models, 'BottomResNet')
         top = getattr(models, hps.top_net)
         model = Model(hps)
         x = model.make_loader()

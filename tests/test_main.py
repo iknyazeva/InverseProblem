@@ -60,6 +60,14 @@ class TestMain:
         history = model.train()
         assert history[0][0] > 0
 
+    def test_resnet_train(self):
+        path_to_json = os.path.join(get_project_root(), 'res_experiments', 'hps_base_resnet.json')
+        hps = HyperParams.from_file(path_to_json=path_to_json)
+        hps.per_epoch = 5
+        model = Model(hps)
+        history = model.train()
+        assert history[0][0] > 0
+
     def test_predict_one_pixel(self, base_mlp_rescale_hps):
         base_mlp_rescale_hps.per_epoch = 1
         base_mlp_rescale_hps.n_epochs = 1
@@ -94,3 +102,5 @@ class TestMain:
         line, cont = read_full_spectra(filename)
         predicted = model.predict_full_image((line, cont), 0)
         assert predicted.shape == (512, line.shape[0])
+
+
