@@ -3,7 +3,7 @@
   "predict_ind": [0, 1, 2],
   "top_output": 3,
   "transform_type" : "mlp_transform_standard",
-  "logB": False,
+  "logB": "False",
   "mode": "norm",
   "source": "database",
   "cont_scale": 40000,
@@ -12,7 +12,8 @@
   "bottom_net": "BottomSimpleMLPNet",
   "batch_size": 20,
   "n_epochs": 5,
-  "per_epoch": 10
+  "tainset": 10,
+  "valset": 10
 }
 
 

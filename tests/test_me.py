@@ -205,7 +205,9 @@ class TestHinodeME:
     def test_read_full_spectra(self):
         cont_scale = 40000
         path_to_data = os.path.join(get_project_root(), 'data', '20170905_030404\\')
-        full_spectra = read_full_spectra(cont_scale, path_to_data)
+        full_spectra = read_full_spectra(cont_scale, files_path=path_to_data)
+        flist = [path_to_data+'SP3D20170905_030404.4C.fits', ]
+        full_spectra = read_full_spectra(cont_scale, files_list=flist)
         assert True
 
 

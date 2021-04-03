@@ -55,8 +55,8 @@ class HyperParams:
 
     per_epoch: int, num of examples to use while training
     """
-    n_input = attr.ib(default=224) # ?
-    bottom_output = attr.ib(default=40) # ?
+    n_input = attr.ib(default=224)
+    bottom_output = attr.ib(default=40)
     predict_ind = attr.ib(default=[0, 1, 2])
     top_output = attr.ib(default=3)
     transform_type = attr.ib(default='mlp_transform_rescale')
@@ -77,7 +77,8 @@ class HyperParams:
     weight_decay = attr.ib(default=0.0)
     batch_size = attr.ib(default=20)
     n_epochs = attr.ib(default=5)
-    per_epoch = attr.ib(default=10)
+    trainset = attr.ib(default=10)
+    valset = attr.ib(default=10)
     patience = attr.ib(default=3)
     absolute_noise_levels = attr.ib(default=[109, 28, 28, 44])
 

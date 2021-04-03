@@ -84,7 +84,7 @@ class Model:
         train_loss = 0.0
         train_it = 0
         for i, inputs in enumerate(sample_batch):
-            if self.hps.per_epoch == i:
+            if self.hps.trainset == i:
                 break
             self.optimizer.zero_grad()
             x = [inputs['X'][0].to(self.device), inputs['X'][1].to(self.device)]
@@ -103,7 +103,7 @@ class Model:
         val_loss = 0.0
         val_it = 0
         for i, inputs in enumerate(sample_batch):
-            if self.hps.per_epoch == i:
+            if self.hps.valset == i:
                 break
             x = [inputs['X'][0].to(self.device), inputs['X'][1].to(self.device)]
             y = inputs['Y'][:, self.hps.predict_ind].to(self.device)
@@ -131,7 +131,7 @@ class Model:
                                               transform=self.transform, ff=ff, noise=noise)
         return DataLoader(transformed_dataset, batch_size=self.hps.batch_size, shuffle=True)
 
-    def train(self, filename=None, save_model=False, path_to_save=None, save_epoch=[],
+    def train(self, filename=None, path_to_save=None, save_epoch=[],
               ff=True, noise=True, scheduler=False, tensorboard=False, logdir=None, comment=''):
         """
             Function for model training
@@ -166,7 +166,7 @@ class Model:
                 if scheduler:
                     self.scheduler.step(val_loss)
 
-                if save_model:
+                if path_to_save:
                     if save_epoch:
                         # todo чтобы каждый чекпоинт сохранялся в свой файл
                         if epoch in save_epoch:
