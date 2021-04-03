@@ -12,7 +12,7 @@
   "bottom_net": "BottomSimpleMLPNet",
   "batch_size": 20,
   "n_epochs": 5,
-  "tainset": 10,
+  "trainset": 10,
   "valset": 10
 }
 

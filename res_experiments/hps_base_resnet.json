@@ -15,7 +15,7 @@
   "weight_decay": 0.0,
   "batch_size": 20,
   "n_epochs": 5,
-  "tainset": 10,
+  "trainset": 10,
   "valset": 10
 }
 

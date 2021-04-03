@@ -53,7 +53,8 @@ class HyperParams:
 
     n_epochs: int, num of epochs to train
 
-    per_epoch: int, num of examples to use while training
+    trainset: int, num of examples to use while training
+    valset: int, num of examples to use while evaluation
     """
     n_input = attr.ib(default=224)
     bottom_output = attr.ib(default=40)
