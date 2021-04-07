@@ -241,9 +241,10 @@ class Model:
     def predict_full_image(self, x, parameter):
         """ Predicts full image
         Args:
-            x (tuple): [0] array of size (n, 512), [1] continuum vector;
+            x (tuple): [0] array of size (n, 512, 11), [1] continuum vector;
             parameter (int): index of parameter to predict
         """
+
         line = torch.FloatTensor(x[0]).to(self.device)
         cont = torch.FloatTensor(x[1]).to(self.device)
         output = np.zeros(line.shape[:2])
