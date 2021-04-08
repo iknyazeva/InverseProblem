@@ -73,9 +73,8 @@ class TestMain:
         base_mlp_rescale_hps.batch_size = 1
         model = Model(base_mlp_rescale_hps)
         history = model.train()
-        filename = os.path.join(get_project_root(), 'data', 'test_1_file\\')
-        cont_scale = model.hps.cont_scale
-        line, cont = read_full_spectra(cont_scale, filename)
+        line = torch.randn((1, 512, 224))
+        cont = torch.randn((512, 1))
         predicted = model.predict_one_pixel((line, cont))
         assert predicted.shape == torch.Size([512, 3])
 
@@ -101,7 +100,7 @@ class TestMain:
         model = Model(base_mlp_rescale_hps)
         history = model.train()
 
-        filename = os.path.join(get_project_root(), 'data', '20170905_030404\\')
+        filename = os.path.join(get_project_root(), 'data', '20170905_030404/')
         cont_scale = model.hps.cont_scale
         line, cont = read_full_spectra(cont_scale, filename)
         predicted = model.predict_full_image((line, cont), 0)
