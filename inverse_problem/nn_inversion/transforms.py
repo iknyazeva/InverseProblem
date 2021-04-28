@@ -207,13 +207,3 @@ def conv1d_transform_standard(**kwargs) -> Callable:
     to_tensor = ToTensor()
     to_conv = ToConv1d()
     return transforms.Compose([norm, to_tensor, to_conv])
-
-
-def normalize_inference(reference, mode='norm', logB=True, **kwargs):
-    sample = np.zeros(reference[1].data.shape+(11, ))
-    idx = [1, 2, 3, 5, 6, 7, 8, 9, 10, 12, 13]
-    for i in range(sample.shape[0]):
-        for t in range(sample.shape[1]):
-            y = [reference[id_].data[i, t] for id_ in idx]
-            sample[i, t] = normalize_output(y, mode=mode, logB=logB, **kwargs)
-    return sample

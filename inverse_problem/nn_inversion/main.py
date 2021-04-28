@@ -9,6 +9,7 @@ from torch.utils.data import DataLoader
 from inverse_problem.nn_inversion.models import HyperParams, FullModel
 from inverse_problem.nn_inversion import models
 from inverse_problem.nn_inversion import transforms
+from inverse_problem.milne_edington.me import HinodeME
 import numpy as np
 
 
@@ -223,7 +224,7 @@ class Model:
     def load_model(self, checkpoint_path):
         self.net.load_state_dict(torch.load(checkpoint_path, map_location=self.device)['model_state_dict'])
 
-    def predict_one_pixel(self, x):
+    def predict_one_pixel(self, refer, idx_0, idx_1, **kwargs):
         """ Predicts one pixel
         Args:
             x: list of torch.tensors where [0] - spectrum lines (1, 512, 224)
@@ -231,29 +232,31 @@ class Model:
         Returns: torch.tensor of shape (512, n), n - number of predicted parameters
 
         """
-        line = torch.FloatTensor(x[0])[0].to(self.device)
-        cont = torch.FloatTensor(x[1]).to(self.device)
+        hinode = HinodeME.from_refer(idx_0, idx_1, refer)
+        param_vec = hinode.param_vector
+        x = hinode.compute_spectrum(**kwargs)
+        # line = torch.FloatTensor(x).to(self.device)
+        cont = torch.tensor(hinode.cont, dtype=torch.float).to(self.device)
+        data = {'X': [x, cont], 'Y': param_vec}
+        data = self.transform(data)
         self.net.eval()
         with torch.no_grad():
-            predicted = self.net((line, cont))
-        return predicted
+            predicted = self.net([data['X'][0].unsqueeze(0).to(self.device), data['X'][1].unsqueeze(0).to(self.device)])
+        return predicted, data['Y']
 
-    def predict_full_image(self, x, parameter):
+    def predict_full_image(self, refer, **kwargs):
         """ Predicts full image
         Args:
             x (tuple): [0] array of size (n, 512, 11), [1] continuum vector;
             parameter (int): index of parameter to predict
         """
+        out = np.zeros(refer[1].data.shape+(self.hps.top_output, ))
+        params = np.zeros(refer[1].data.shape+(11, ))
+        for i in range(out.shape[0]):
+            for t in range(out.shape[1]):
+                out[i, t], params[i, t] = self.predict_one_pixel(refer, i, t, **kwargs)
+        return out, params
 
-        line = torch.FloatTensor(x[0]).to(self.device)
-        cont = torch.FloatTensor(x[1]).to(self.device)
-        output = np.zeros(line.shape[:2])
-        self.net.eval()
-        with torch.no_grad():
-            for i in range(line.shape[0]):
-                predicted = self.net((line[i], cont)).cpu()
-                output[i] = predicted[:, parameter]
-        return output.T
 
     def tensorboard_flush(self):
         self.tensorboard_writer.flush()

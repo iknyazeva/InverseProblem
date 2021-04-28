@@ -1,6 +1,8 @@
 import pytest
 import torch
 import os
+from astropy.io import fits
+from pathlib import Path
 from inverse_problem.nn_inversion.main import HyperParams, Model
 from inverse_problem import get_project_root
 from inverse_problem.milne_edington.me import read_full_spectra
@@ -73,10 +75,10 @@ class TestMain:
         base_mlp_rescale_hps.batch_size = 1
         model = Model(base_mlp_rescale_hps)
         history = model.train()
-        line = torch.randn((1, 512, 224))
-        cont = torch.randn((512, 1))
-        predicted = model.predict_one_pixel((line, cont))
-        assert predicted.shape == torch.Size([512, 3])
+        filename = Path(os.getcwd()).parent / 'data' / "20170905_030404.fits"
+        ref = fits.open(filename)
+        predicted = model.predict_one_pixel(ref, 3, 4)
+        assert predicted.shape == torch.Size([1, 3])
 
     def test_continue_training(self, base_mlp_rescale_hps):
         base_mlp_rescale_hps.trainset = 1
@@ -100,10 +102,9 @@ class TestMain:
         model = Model(base_mlp_rescale_hps)
         history = model.train()
 
-        filename = os.path.join(get_project_root(), 'data', '20170905_030404/')
-        cont_scale = model.hps.cont_scale
-        line, cont = read_full_spectra(cont_scale, filename)
-        predicted = model.predict_full_image((line, cont), 0)
-        assert predicted.shape == (512, line.shape[0])
+        filename = Path(os.getcwd()).parent / 'data' / "20170905_030404.fits"
+        ref = fits.open(filename)
+        predicted, params = model.predict_full_image(ref)
+        assert predicted.shape == (ref[1].data.shape+(3, ))
 
 

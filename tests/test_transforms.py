@@ -1,15 +1,12 @@
-import pytest
-import numpy as np
-from torchvision import transforms
-import torch
 import os
-from pathlib import Path
-from astropy.io import fits
+
+import pytest
+import torch
+
 from inverse_problem import get_project_root
-from inverse_problem.nn_inversion import SpectrumDataset, ToTensor, NormalizeStandard, Rescale, FlattenSpectrum
-from inverse_problem.nn_inversion import mlp_transform_standard, mlp_transform_rescale,conv1d_transform_rescale
-from inverse_problem.nn_inversion.transforms import normalize_output, normalize_inference
-from inverse_problem.milne_edington.me import read_full_spectra
+from inverse_problem.nn_inversion import SpectrumDataset, ToTensor, NormalizeStandard, Rescale
+from inverse_problem.nn_inversion import mlp_transform_standard, mlp_transform_rescale, conv1d_transform_rescale
+from inverse_problem.nn_inversion.transforms import normalize_output
 
 
 class TestTransforms:
@@ -66,10 +63,6 @@ class TestTransforms:
         transformed_sample = trsfm(sample_from_database)
         assert True
 
-    def test_normalize_inference(self):
-        fits_path = os.path.join(get_project_root(), 'data', '20170905_030404.fits')
-        reference = fits.open(fits_path)
-        output = normalize_inference(reference)
 
 
 
