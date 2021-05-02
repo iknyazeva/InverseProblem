@@ -78,7 +78,22 @@ class TestMain:
         filename = Path(os.getcwd()).parent / 'data' / "20170905_030404.fits"
         ref = fits.open(filename)
         predicted = model.predict_one_pixel(ref, 3, 4)
-        assert predicted.shape == torch.Size([1, 3])
+        assert predicted[0].shape == torch.Size([1, 3])
+
+    def test_predict_one_pixel_conv(self):
+        path_to_json = os.path.join(get_project_root(), 'res_experiments', 'hps_base_conv.json')
+        hps = HyperParams.from_file(path_to_json=path_to_json)
+        hps.trainset = 1
+        hps.valset = 1
+        hps.n_epochs = 1
+        hps.batch_size = 1
+        model = Model(hps)
+        history = model.train()
+
+        filename = Path(os.getcwd()).parent / 'data' / "20170905_030404.fits"
+        ref = fits.open(filename)
+        predicted = model.predict_one_pixel(ref, 3, 4)
+        assert predicted[0].shape == torch.Size([1, 3])
 
     def test_continue_training(self, base_mlp_rescale_hps):
         base_mlp_rescale_hps.trainset = 1
@@ -100,6 +115,22 @@ class TestMain:
         base_mlp_rescale_hps.n_epochs = 1
         base_mlp_rescale_hps.batch_size = 1
         model = Model(base_mlp_rescale_hps)
+        history = model.train()
+
+        filename = Path(os.getcwd()).parent / 'data' / "20170905_030404.fits"
+        ref = fits.open(filename)
+        predicted, params = model.predict_full_image(ref)
+        assert predicted.shape == (ref[1].data.shape+(3, ))
+
+
+    def test_predict_full_image_conv(self):
+        path_to_json = os.path.join(get_project_root(), 'res_experiments', 'hps_base_conv.json')
+        hps = HyperParams.from_file(path_to_json=path_to_json)
+        hps.trainset = 1
+        hps.valset = 1
+        hps.n_epochs = 1
+        hps.batch_size = 1
+        model = Model(hps)
         history = model.train()
 
         filename = Path(os.getcwd()).parent / 'data' / "20170905_030404.fits"
