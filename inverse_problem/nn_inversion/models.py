@@ -163,7 +163,7 @@ class BottomSimpleConv1d(BaseNet):
         self.linear = nn.Sequential(nn.Linear(64*14, hps.bottom_output), nn.ReLU())
 
     def forward(self, x):
-        x = self.conv1(x.squeeze())
+        x = self.conv1(x.squeeze(1))
         x = self.conv2(x)
         # print(x.shape)
         x = x.view(x.size(0), -1)
