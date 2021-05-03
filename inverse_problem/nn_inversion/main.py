@@ -242,7 +242,7 @@ class Model:
         self.net.eval()
         with torch.no_grad():
             predicted = self.net([data['X'][0].unsqueeze(0).to(self.device), data['X'][1].unsqueeze(0).to(self.device)])
-        return predicted, data['Y']
+        return predicted.cpu(), data['Y']
 
     def predict_full_image(self, refer, **kwargs):
         """ Predicts full image
