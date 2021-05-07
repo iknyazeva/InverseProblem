@@ -242,7 +242,7 @@ class Model:
         self.net.eval()
         with torch.no_grad():
             predicted = self.net([data['X'][0].unsqueeze(0).to(self.device), data['X'][1].unsqueeze(0).to(self.device)])
-        return predicted.cpu(), data['Y']
+        return predicted.cpu(), data['Y'], data['X'][0], data['X'][1]
 
     def predict_full_image(self, refer, **kwargs):
         """ Predicts full image
@@ -252,10 +252,12 @@ class Model:
         """
         out = np.zeros(refer[1].data.shape+(self.hps.top_output, ))
         params = np.zeros(refer[1].data.shape+(11, ))
+        lines = np.zeros(refer[1].data.shape+(224, ))
+        cont = np.zeros(refer[1].data.shape+(1, ))
         for i in range(out.shape[0]):
             for t in range(out.shape[1]):
-                out[i, t], params[i, t] = self.predict_one_pixel(refer, i, t, **kwargs)
-        return out, params
+                out[i, t], params[i, t], lines[i, t], cont[i, t] = self.predict_one_pixel(refer, i, t, **kwargs)
+        return out, params, lines, cont
 
 
     def tensorboard_flush(self):
