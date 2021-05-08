@@ -227,9 +227,7 @@ class Model:
     def predict_one_pixel(self, refer, idx_0, idx_1, **kwargs):
         """ Predicts one pixel
         Args:
-            x: list of torch.tensors where [0] - spectrum lines (1, 512, 224)
-                [1] - cont
-        Returns: torch.tensor of shape (512, n), n - number of predicted parameters
+        Returns: predicted params, transformed target params, computed lines, cont
 
         """
         hinode = HinodeME.from_refer(idx_0, idx_1, refer)
@@ -244,21 +242,25 @@ class Model:
             predicted = self.net([data['X'][0].unsqueeze(0).to(self.device), data['X'][1].unsqueeze(0).to(self.device)])
         return predicted.cpu(), data['Y'], data['X'][0], data['X'][1]
 
-    def predict_full_image(self, refer, **kwargs):
+    def predict_full_image(self, refer, cnn, **kwargs):
         """ Predicts full image
         Args:
-            x (tuple): [0] array of size (n, 512, 11), [1] continuum vector;
-            parameter (int): index of parameter to predict
+            refer - fits lev2
+            cnn - whether the model is cnn, for proper lines output
+
         """
         out = np.zeros(refer[1].data.shape+(self.hps.top_output, ))
         params = np.zeros(refer[1].data.shape+(11, ))
-        lines = np.zeros(refer[1].data.shape+(224, ))
-        cont = np.zeros(refer[1].data.shape+(1, ))
+        cont = np.zeros(refer[1].data.shape + (1,))
+        if cnn:
+            lines = np.zeros(refer[1].data.shape+(4, 56))
+        else:
+            lines = np.zeros(refer[1].data.shape + (224, ))
+
         for i in range(out.shape[0]):
             for t in range(out.shape[1]):
                 out[i, t], params[i, t], lines[i, t], cont[i, t] = self.predict_one_pixel(refer, i, t, **kwargs)
         return out, params, lines, cont
-
 
     def tensorboard_flush(self):
         self.tensorboard_writer.flush()

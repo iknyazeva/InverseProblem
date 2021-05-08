@@ -92,7 +92,7 @@ class TestMain:
 
         filename = Path(os.getcwd()).parent / 'data' / "20170905_030404.fits"
         ref = fits.open(filename)
-        predicted = model.predict_one_pixel(ref, 3, 4)
+        predicted, y, x, _ = model.predict_one_pixel(ref, 3, 4)
         assert predicted[0].shape == torch.Size([1, 3])
 
     def test_continue_training(self, base_mlp_rescale_hps):
@@ -135,7 +135,7 @@ class TestMain:
 
         filename = Path(os.getcwd()).parent / 'data' / "20170905_030404.fits"
         ref = fits.open(filename)
-        predicted, params = model.predict_full_image(ref)
+        predicted, params, lines, cont = model.predict_full_image(ref, cnn=True)
         assert predicted.shape == (ref[1].data.shape+(3, ))
 
 
