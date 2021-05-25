@@ -4,6 +4,7 @@ import torch
 from torch import nn
 import torchvision
 from pathlib import Path
+from inverse_problem.nn_inversion.layers import MLPBlock, MLPReadout
 import attr
 
 
@@ -57,9 +58,14 @@ class HyperParams:
     valset: int, num of examples to use while evaluation
     """
     n_input = attr.ib(default=224)
+    batch_norm = attr.ib(default=True)
+    dropout = attr.ib(default=0.05)
+    hidden_dims = attr.ib(default=[200, 300])
     bottom_output = attr.ib(default=40)
     predict_ind = attr.ib(default=[0, 1, 2])
+    activation = attr.ib(default='relu')
     top_output = attr.ib(default=3)
+    top_layers = attr.ib(default=2)
     transform_type = attr.ib(default='mlp_transform_rescale')
     mode = attr.ib(default='range')
     logB = attr.ib(default=True)
@@ -68,11 +74,9 @@ class HyperParams:
     norm_output = attr.ib(default=True)
     source = attr.ib(default='database')
     hidden_size = attr.ib(default=100)
-    dropout = attr.ib(default=0.0)
     bn = attr.ib(default=1)
     top_net = attr.ib(default='TopNet')
     bottom_net = attr.ib(default='BottomSimpleConv1d')
-    activation = attr.ib(default='relu')
     lr = attr.ib(default=0.0001)
     lr_decay = attr.ib(default=0.0)
     weight_decay = attr.ib(default=0.0)
@@ -82,7 +86,6 @@ class HyperParams:
     valset = attr.ib(default=10)
     patience = attr.ib(default=3)
     absolute_noise_levels = attr.ib(default=[109, 28, 28, 44])
-
 
     @classmethod
     def from_file(cls, path_to_json: Path):
@@ -95,6 +98,7 @@ class HyperParams:
 
 class BaseNet(nn.Module):
     """Parent class for all models"""
+
     def __init__(self, hps: HyperParams):
         """
         Args:
@@ -102,11 +106,14 @@ class BaseNet(nn.Module):
         """
         super().__init__()
         self.hps = hps
+        self.batch_norm = hps.batch_norm
+        self.dropout = hps.dropout
         self.activation = getattr(F, hps.activation)
 
 
 class FullModel(BaseNet):
     """Creates full model using bottom and top nets"""
+
     def __init__(self, hps: HyperParams, bottom: BaseNet, top: BaseNet):
         """
         Args:
@@ -123,6 +130,50 @@ class FullModel(BaseNet):
         x = torch.cat((x, sample_x[1]), axis=1)
         x = self.top(x)
         return x
+
+
+class BottomMLPNet(BaseNet):
+    """ Arbitraty-layer MLP forward propagation with batch-norm dropout, bottom layer, takes plain input.
+       """
+
+    def __init__(self, hps: HyperParams):
+        super().__init__(hps)
+        self.mlp = MLPBlock(hps.n_input, self.activation, self.dropout,
+                            self.batch_norm, hps.hidden_dims + [hps.bottom_output])
+
+    def forward(self, x):
+        x = self.mlp(x)
+        return x
+
+
+class TopCommonMLPNet(BaseNet):
+    """
+    Hard-hard sharing, only one unit for target have own weight
+    """
+
+    def __init__(self, hps: HyperParams):
+        super().__init__(hps)
+        self.mlp = MLPReadout(hps.bottom_output + 1, hps.top_output, self.activation, self.dropout,
+                              self.batch_norm, hps.top_layers)
+
+    def forward(self, x):
+        x = self.mlp(x)
+        return x
+
+
+class TopIndependentNet(BaseNet):
+    """
+        Task independent block, only one unit for target have own weight
+    """
+
+    def __init__(self, hps: HyperParams):
+        super().__init__(hps)
+        layer = MLPReadout(hps.bottom_output + 1, 1, self.activation, self.dropout,
+                           self.batch_norm, hps.top_layers)
+        self.task_layers = nn.ModuleList(hps.top_output*[layer])
+
+    def forward(self, x):
+        return torch.cat(tuple(task_layer(x) for task_layer in self.task_layers), dim=1)
 
 
 class BottomSimpleMLPNet(BaseNet):
@@ -160,7 +211,7 @@ class BottomSimpleConv1d(BaseNet):
                                    nn.AvgPool1d(2),
                                    nn.ReLU(),
                                    nn.BatchNorm1d(64))
-        self.linear = nn.Sequential(nn.Linear(64*14, hps.bottom_output), nn.ReLU())
+        self.linear = nn.Sequential(nn.Linear(64 * 14, hps.bottom_output), nn.ReLU())
 
     def forward(self, x):
         x = self.conv1(x.squeeze(1))
@@ -180,7 +231,7 @@ class BottomResNet(BaseNet):
 
     def forward(self, x):
         x = self.resnet(x.permute(0, 2, 1, 3))
-        #print(x.shape)
+        # print(x.shape)
         x = x.view(-1, 1000)
         x = self.linear(x)
         return x
@@ -201,4 +252,3 @@ class TopNet(BaseNet):
         x = self.dropout(self.activation(self.fc1(x)))
         x = self.fc2(x)
         return x
-
