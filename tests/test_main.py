@@ -2,6 +2,7 @@ import pytest
 import torch
 import os
 from astropy.io import fits
+from inverse_problem.milne_edington.data_utils import create_small_dataset
 from pathlib import Path
 from inverse_problem.nn_inversion.main import HyperParams, Model
 from inverse_problem import get_project_root
@@ -24,7 +25,7 @@ class TestMain:
 
     def test_model_make_loader(self, base_mlp_rescale_hps):
         model = Model(base_mlp_rescale_hps)
-        train_loader = model.make_loader()
+        train_loader, val_loader = model.make_loader()
         it = iter(train_loader)
         sample_batch = next(it)
         assert sample_batch['X'][0].size() == (20, 224)
@@ -120,8 +121,7 @@ class TestMain:
         filename = Path(os.getcwd()).parent / 'data' / "20170905_030404.fits"
         ref = fits.open(filename)
         predicted, params, lines, cont = model.predict_full_image(ref)
-        assert predicted.shape == (ref[1].data.shape+(3, ))
-
+        assert predicted.shape == (ref[1].data.shape + (3,))
 
     def test_predict_full_image_conv(self):
         path_to_json = os.path.join(get_project_root(), 'res_experiments', 'hps_base_conv.json')
@@ -136,6 +136,60 @@ class TestMain:
         filename = Path(os.getcwd()).parent / 'data' / "20170905_030404.fits"
         ref = fits.open(filename)
         predicted, params, lines, cont = model.predict_full_image(ref, cnn=True)
-        assert predicted.shape == (ref[1].data.shape+(3, ))
+        assert predicted.shape == (ref[1].data.shape + (3,))
 
+
+class TestMainMlp():
+    @pytest.fixture
+    def params(self):
+        filename = get_project_root() / 'data' / 'parameters_base.fits'
+        savename = get_project_root() / 'data' / 'small_parameters_base.fits'
+        create_small_dataset(filename, savename, size=1000)
+        params = fits.open(savename)[0].data
+        return params
+
+    @pytest.fixture
+    def common_mlp_rescale_hps(self):
+        path_to_json = os.path.join(get_project_root(), 'res_experiments', 'hps_common_mlp.json')
+        hps = HyperParams.from_file(path_to_json=path_to_json)
+        return hps
+
+    def test_model_make_loader(self, common_mlp_rescale_hps):
+        model = Model(common_mlp_rescale_hps)
+        train_loader, val_loader = model.make_loader(filename='../data/small_parameters_base.fits')
+        it = iter(train_loader)
+        sample_batch = next(it)
+        assert sample_batch['X'][0].size() == (20, 224)
+        assert sample_batch['Y'].size() == (20, 11)
+        assert isinstance(sample_batch['X'][0], torch.Tensor)
+        assert isinstance(sample_batch['Y'][0], torch.Tensor)
+
+    def test_model_fit_step(self, common_mlp_rescale_hps):
+        model = Model(common_mlp_rescale_hps)
+        train_loader, val_loader = model.make_loader(filename='../data/small_parameters_base.fits')
+        loss = model.fit_step(train_loader)
+        loss = model.eval_step(val_loader)
+        assert loss > 0
+
+    def test_model_eval_step(self, common_mlp_rescale_hps):
+        model = Model(common_mlp_rescale_hps)
+        train_loader, val_loader = model.make_loader(filename='../data/small_parameters_base.fits')
+        loss = model.eval_step(val_loader)
+        assert loss > 0
+
+    def test_model_train(self, common_mlp_rescale_hps):
+        model = Model(common_mlp_rescale_hps)
+        filename = '../data/small_parameters_base.fits'
+        history = model.train(filename=filename, path_to_save ='../res_experiments/trained_models/test.pt')
+        #model.save_model(path_to_save='../res_experiments/trained_models/test.pt')
+        assert True
+
+    def test_model_ind_train(self):
+        path_to_json = os.path.join(get_project_root(), 'res_experiments', 'hps_independent_mlp.json')
+        hps = HyperParams.from_file(path_to_json=path_to_json)
+        model = Model(hps)
+        filename = '../data/small_parameters_base.fits'
+        history = model.train(filename=filename, path_to_save='../res_experiments/trained_models/test.pt')
+        # model.save_model(path_to_save='../res_experiments/trained_models/test.pt')
+        assert True
 

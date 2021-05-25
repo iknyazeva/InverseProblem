@@ -22,6 +22,13 @@ def download_from_google_disc(fileid=None, dest=None):
                                         dest_path=dest, showsize=True)
 
 
+def create_small_dataset(filename, savename, size=10000):
+    parameter_base = fits.open(filename)[0].data
+    small_parameter_base = parameter_base[:size, :]
+    hdul = fits.HDUList([fits.PrimaryHDU(small_parameter_base)])
+    hdul.writeto(savename, overwrite=1)
+
+
 def compute_mean_spectrum(filename, batch_size=None, nbatches=None):
     line_vec = (6302.5, 2.5, 1)
     line_arg = 1000 * (np.linspace(6302.0692255, 6303.2544205, 56) - line_vec[0])

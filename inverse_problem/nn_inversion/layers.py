@@ -86,9 +86,9 @@ class MLPReadout(nn.Module):
         super().__init__()
         self.num_layers = num_layers
         list_FC_layers = [MLPlayer(in_dim, in_dim // 2, activation, dropout, batch_norm)]
-        list_FC_layers.extend([MLPlayer(in_dim // 2 * l, in_dim // 2 * (l + 1), activation, dropout, batch_norm)
+        list_FC_layers.extend([MLPlayer(in_dim // 2 * l, in_dim // (2 * (l + 1)), activation, dropout, batch_norm)
                                for l in range(1, num_layers)])
-        list_FC_layers.append(MLPlayer(in_dim // 2 * num_layers, out_dim, None, dropout, batch_norm))
+        list_FC_layers.append(MLPlayer(in_dim // (2 * num_layers), out_dim, None, dropout, batch_norm))
         self.FC_layers = nn.ModuleList(list_FC_layers)
 
     def forward(self, x):

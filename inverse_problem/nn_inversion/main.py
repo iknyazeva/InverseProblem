@@ -1,6 +1,8 @@
 from inverse_problem.nn_inversion.dataset import SpectrumDataset
 import torch
+from sklearn.model_selection import train_test_split
 from torch.utils.tensorboard import SummaryWriter
+from torch.utils.data import Subset
 from tqdm import tqdm
 from torch import nn
 import os
@@ -81,12 +83,13 @@ class Model:
     def _init_tensorboard(self, logdir=None, comment=''):
         return SummaryWriter(log_dir=logdir, comment=comment)
 
-    def fit_step(self, sample_batch):
+    def fit_step(self, dataloader):
         train_loss = 0.0
         train_it = 0
-        for i, inputs in enumerate(sample_batch):
-            if self.hps.trainset == i:
-                break
+        for i, inputs in enumerate(dataloader):
+            if self.hps.trainset:
+                if self.hps.trainset == i:
+                    break
             self.optimizer.zero_grad()
             x = [inputs['X'][0].to(self.device), inputs['X'][1].to(self.device)]
             # print(x.shape)
@@ -99,13 +102,14 @@ class Model:
             train_it += 1
         return train_loss / train_it
 
-    def eval_step(self, sample_batch):
+    def eval_step(self, dataloader):
         self.net.eval()
         val_loss = 0.0
         val_it = 0
-        for i, inputs in enumerate(sample_batch):
-            if self.hps.valset == i:
-                break
+        for i, inputs in enumerate(dataloader):
+            if self.hps.valset:
+                if self.hps.valset == i:
+                    break
             x = [inputs['X'][0].to(self.device), inputs['X'][1].to(self.device)]
             y = inputs['Y'][:, self.hps.predict_ind].to(self.device)
             with torch.no_grad():
@@ -115,11 +119,11 @@ class Model:
             val_it += 1
         return val_loss / val_it
 
-    def make_loader(self, filename: Path = None, ff=True, noise=True) -> DataLoader:
+    def make_loader(self, filename: Path = None, ff=True, noise=True, val_split=0.1) -> DataLoader:
         """
         Args:
-            noise (bool):
-            ff (bool):
+            noise (bool): add noise or not
+            ff (bool): with filling factor
             filename (): str, Optional; Path where to load data from
 
         Returns:
@@ -130,7 +134,12 @@ class Model:
             filename = os.path.join(project_path, 'data/parameters_base.fits')
         transformed_dataset = SpectrumDataset(filename, source=self.hps.source,
                                               transform=self.transform, ff=ff, noise=noise)
-        return DataLoader(transformed_dataset, batch_size=self.hps.batch_size, shuffle=True)
+        train_idx, val_idx = train_test_split(list(range(len(transformed_dataset))), test_size=val_split)
+        train_dataset = Subset(transformed_dataset, train_idx)
+        val_dataset = Subset(transformed_dataset, val_idx)
+        train_loader = DataLoader(train_dataset, batch_size=self.hps.batch_size, shuffle=True)
+        val_loader = DataLoader(val_dataset, batch_size=self.hps.batch_size, shuffle=True)
+        return train_loader, val_loader
 
     def train(self, filename=None, path_to_save=None, save_epoch=[],
               ff=True, noise=True, scheduler=False, tensorboard=False, logdir=None, comment=''):
@@ -151,8 +160,7 @@ class Model:
         Returns:
             List, training process history
         """
-        train_loader = self.make_loader(filename, ff=ff, noise=noise)
-        val_loader = self.make_loader(filename, ff=ff, noise=noise)
+        train_loader, val_loader = self.make_loader(filename, ff=ff, noise=noise)
         best_valid_loss = float('inf')
         history = []
         log_template = "\nEpoch {ep:03d} train_loss: {t_loss:0.4f} \

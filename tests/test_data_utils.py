@@ -3,7 +3,14 @@ from pathlib import Path
 from inverse_problem.milne_edington import compute_mean_spectrum
 import numpy as np
 from astropy.io import fits
-from inverse_problem.milne_edington.data_utils import download_from_google_disc, get_project_root
+from inverse_problem.milne_edington.data_utils import download_from_google_disc, get_project_root, create_small_dataset
+
+def test_create_small_dataset():
+    filename = get_project_root() / 'data' / 'parameters_base.fits'
+    savename = get_project_root() / 'data' / 'small_parameters_base.fits'
+    create_small_dataset(filename, savename, size=10000)
+    params = fits.open(savename)[0].data
+    assert params.shape[0] == 10000
 
 def test_compute_mean_spectrum():
 
