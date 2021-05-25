@@ -64,6 +64,7 @@ class HyperParams:
     bottom_output = attr.ib(default=40)
     predict_ind = attr.ib(default=[0, 1, 2])
     activation = attr.ib(default='relu')
+    val_split = attr.ib(default=0.1)
     top_output = attr.ib(default=3)
     top_layers = attr.ib(default=2)
     transform_type = attr.ib(default='mlp_transform_rescale')

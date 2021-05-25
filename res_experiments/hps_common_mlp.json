@@ -2,6 +2,7 @@
   "bottom_output": 100,
   "predict_ind": [0, 1, 2],
   "top_output": 3,
+  "val_split": 0.1,
   "transform_type" : "mlp_transform_rescale",
   "source": "database",
   "logB": true,
@@ -16,6 +17,6 @@
   "bottom_net": "BottomMLPNet",
   "batch_size": 20,
   "n_epochs": 5,
-  "trainset": 10,
+  "trainset": null,
   "valset": 10
 }

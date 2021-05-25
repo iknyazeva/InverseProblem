@@ -86,20 +86,25 @@ class Model:
     def fit_step(self, dataloader):
         train_loss = 0.0
         train_it = 0
-        for i, inputs in enumerate(dataloader):
-            if self.hps.trainset:
-                if self.hps.trainset == i:
-                    break
-            self.optimizer.zero_grad()
-            x = [inputs['X'][0].to(self.device), inputs['X'][1].to(self.device)]
-            # print(x.shape)
-            y = inputs['Y'][:, self.hps.predict_ind].to(self.device)
-            outputs = self.net(x)
-            loss = self.criterion(outputs, y)
-            loss.backward()
-            self.optimizer.step()
-            train_loss += loss.item()
-            train_it += 1
+        total = self.hps.trainset or len(dataloader)
+        log_template = "\nBatch {batch:03d} train_loss: {t_loss:0.4f}"
+        with tqdm(desc="batch", total=total) as pbar_outer:
+            for i, inputs in enumerate(dataloader):
+                if self.hps.trainset:
+                    if self.hps.trainset == i:
+                        break
+                self.optimizer.zero_grad()
+                x = [inputs['X'][0].to(self.device), inputs['X'][1].to(self.device)]
+                # print(x.shape)
+                y = inputs['Y'][:, self.hps.predict_ind].to(self.device)
+                outputs = self.net(x)
+                loss = self.criterion(outputs, y)
+                loss.backward()
+                self.optimizer.step()
+                train_loss += loss.item()
+                train_it += 1
+                pbar_outer.update(1)
+                tqdm.write(log_template.format(batch=i, t_loss=train_loss))
         return train_loss / train_it
 
     def eval_step(self, dataloader):
@@ -160,7 +165,7 @@ class Model:
         Returns:
             List, training process history
         """
-        train_loader, val_loader = self.make_loader(filename, ff=ff, noise=noise)
+        train_loader, val_loader = self.make_loader(filename, ff=ff, noise=noise, val_split=self.hps.val_split)
         best_valid_loss = float('inf')
         history = []
         log_template = "\nEpoch {ep:03d} train_loss: {t_loss:0.4f} \
