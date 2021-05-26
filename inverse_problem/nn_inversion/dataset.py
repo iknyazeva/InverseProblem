@@ -13,7 +13,7 @@ class SpectrumDataset(Dataset):
     """
 
     # todo update for download option
-    def __init__(self, param_path: Path,
+    def __init__(self, data_arr=None, param_path: Path = None,
                  source='database', transform: Callable = None, download: bool = False,
                  ff: bool = True, noise: bool = True):
         """
@@ -26,6 +26,9 @@ class SpectrumDataset(Dataset):
             ff (): whether to use filling factor
             noise (): whether to add noise
         """
+        if data_arr is None and param_path is None:
+            raise AssertionError('you need provide data or path to data')
+
         self.param_path = param_path
         self.source = source
         self.download = download
@@ -35,7 +38,10 @@ class SpectrumDataset(Dataset):
             fileid = '12GslrX_J0Pw9jfr23oWoJ5gDb_I91Mj7'
             download_from_google_disc(fileid=fileid, dest=self.param_path)
         self.transform = transform
-        self._init_dataset()
+        if data_arr is not None:
+            self.param_source = data_arr
+        else:
+            self._init_dataset()
 
     def __len__(self):
         if self.source == 'database':

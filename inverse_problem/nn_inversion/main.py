@@ -124,7 +124,7 @@ class Model:
             val_it += 1
         return val_loss / val_it
 
-    def make_loader(self, filename: Path = None, ff=True, noise=True, val_split=0.1) -> DataLoader:
+    def make_loader(self, data_arr=None, filename: Path = None, ff=True, noise=True, val_split=0.1) -> DataLoader:
         """
         Args:
             noise (bool): add noise or not
@@ -134,10 +134,12 @@ class Model:
         Returns:
             DataLoader
         """
-        if filename is None:
-            project_path = Path(__file__).resolve().parents[2]
-            filename = os.path.join(project_path, 'data/parameters_base.fits')
-        transformed_dataset = SpectrumDataset(filename, source=self.hps.source,
+        #if filename is None:
+        #    project_path = Path(__file__).resolve().parents[2]
+        #    filename = os.path.join(project_path, 'data/parameters_base.fits')
+        if data_arr is None and filename is None:
+            raise AssertionError('you need provide data or path to data')
+        transformed_dataset = SpectrumDataset(data_arr=data_arr, param_path=filename, source=self.hps.source,
                                               transform=self.transform, ff=ff, noise=noise)
         train_idx, val_idx = train_test_split(list(range(len(transformed_dataset))), test_size=val_split)
         train_dataset = Subset(transformed_dataset, train_idx)
@@ -146,7 +148,7 @@ class Model:
         val_loader = DataLoader(val_dataset, batch_size=self.hps.batch_size, shuffle=True)
         return train_loader, val_loader
 
-    def train(self, filename=None, path_to_save=None, save_epoch=[],
+    def train(self, data_arr=None, filename=None, path_to_save=None, save_epoch=[],
               ff=True, noise=True, scheduler=False, tensorboard=False, logdir=None, comment=''):
         """
             Function for model training
@@ -165,7 +167,7 @@ class Model:
         Returns:
             List, training process history
         """
-        train_loader, val_loader = self.make_loader(filename, ff=ff, noise=noise, val_split=self.hps.val_split)
+        train_loader, val_loader = self.make_loader(data_arr, filename, ff=ff, noise=noise, val_split=self.hps.val_split)
         best_valid_loss = float('inf')
         history = []
         log_template = "\nEpoch {ep:03d} train_loss: {t_loss:0.4f} \

@@ -147,6 +147,14 @@ class BottomMLPNet(BaseNet):
         return x
 
 
+class ZeroMLP(BaseNet):
+    def __init__(self, hps: HyperParams):
+        super().__init__(hps)
+
+    def forward(self, x):
+        return x
+
+
 class TopCommonMLPNet(BaseNet):
     """
     Hard-hard sharing, only one unit for target have own weight
@@ -171,7 +179,7 @@ class TopIndependentNet(BaseNet):
         super().__init__(hps)
         layer = MLPReadout(hps.bottom_output + 1, 1, self.activation, self.dropout,
                            self.batch_norm, hps.top_layers)
-        self.task_layers = nn.ModuleList(hps.top_output*[layer])
+        self.task_layers = nn.ModuleList(hps.top_output * [layer])
 
     def forward(self, x):
         return torch.cat(tuple(task_layer(x) for task_layer in self.task_layers), dim=1)

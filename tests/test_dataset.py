@@ -1,4 +1,5 @@
 import pytest
+import astropy.io.fits as fits
 import numpy as np
 import os
 from pathlib import Path
@@ -14,15 +15,21 @@ class TestSpectrumDataset:
         project_path = get_project_root()
         filename =  project_path / 'data' / 'small_parameters_base.fits'
         source = 'database'
-        sobj = SpectrumDataset(filename, source=source)
+        sobj = SpectrumDataset(param_path=filename, source=source)
         sample = sobj[0]
         return sample
+    def test_init_dataset(self):
+        project_path = get_project_root()
+        filename = project_path / 'data' / 'small_parameters_base.fits'
+        param_array = fits.open(filename)[0].data[:10]
+        sobj = SpectrumDataset(data_arr=param_array)
+        assert True
 
     def test_init_database_dataset(self):
         project_path = get_project_root()
         filename = project_path / 'data' / 'parameters_base.fits'
         source = 'database'
-        sobj = SpectrumDataset(filename, source=source)
+        sobj = SpectrumDataset(param_path=filename, source=source)
         assert sobj.param_source.shape[1] == 11
         assert isinstance(sobj[0]['X'][1], float)
         assert isinstance(sobj[0]['X'][0], np.ndarray)
@@ -34,7 +41,7 @@ class TestSpectrumDataset:
         project_path = get_project_root()
         filename = project_path / 'data' / 'hinode_source'/'20140926_170005.fits'
         source = 'refer'
-        sobj = SpectrumDataset(filename, source=source)
+        sobj = SpectrumDataset(param_path=filename, source=source)
         assert isinstance(sobj.param_source, list)
         assert isinstance(sobj[0]['X'][1], float)
         assert 224 == sobj[0]['X'][0].size

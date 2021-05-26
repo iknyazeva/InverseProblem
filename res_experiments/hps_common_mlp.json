@@ -1,8 +1,8 @@
 {"n_input": 224,
   "bottom_output": 100,
-  "predict_ind": [0, 1, 2],
-  "top_output": 3,
-  "val_split": 0.1,
+  "predict_ind": [0,1,2,3,4,5,6,7,8,9,10],
+  "top_output": 11,
+  "val_split": 0.01,
   "transform_type" : "mlp_transform_rescale",
   "source": "database",
   "logB": true,
@@ -15,8 +15,8 @@
   "activation": "elu",
   "top_net": "TopCommonMLPNet",
   "bottom_net": "BottomMLPNet",
-  "batch_size": 20,
+  "batch_size": 64,
   "n_epochs": 5,
   "trainset": null,
-  "valset": 10
+  "valset": null
 }

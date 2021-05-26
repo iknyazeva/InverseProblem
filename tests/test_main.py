@@ -142,9 +142,9 @@ class TestMain:
 class TestMainMlp():
     @pytest.fixture
     def params(self):
-        filename = get_project_root() / 'data' / 'parameters_base.fits'
+        #filename = get_project_root() / 'data' / 'parameters_base.fits'
         savename = get_project_root() / 'data' / 'small_parameters_base.fits'
-        create_small_dataset(filename, savename, size=1000)
+        #create_small_dataset(filename, savename, size=1000)
         params = fits.open(savename)[0].data
         return params
 
@@ -153,6 +153,16 @@ class TestMainMlp():
         path_to_json = os.path.join(get_project_root(), 'res_experiments', 'hps_common_mlp.json')
         hps = HyperParams.from_file(path_to_json=path_to_json)
         return hps
+
+    def test_model_make_loader_data(self, common_mlp_rescale_hps, params):
+        model = Model(common_mlp_rescale_hps)
+        train_loader, val_loader = model.make_loader(data_arr=params)
+        it = iter(train_loader)
+        sample_batch = next(it)
+        assert sample_batch['X'][0].size() == (20, 224)
+        assert sample_batch['Y'].size() == (20, 11)
+        assert isinstance(sample_batch['X'][0], torch.Tensor)
+        assert isinstance(sample_batch['Y'][0], torch.Tensor)
 
     def test_model_make_loader(self, common_mlp_rescale_hps):
         model = Model(common_mlp_rescale_hps)
@@ -177,8 +187,10 @@ class TestMainMlp():
         loss = model.eval_step(val_loader)
         assert loss > 0
 
-    def test_model_train(self, common_mlp_rescale_hps):
-        model = Model(common_mlp_rescale_hps)
+    def test_common_model_train(self, common_mlp_rescale_hps):
+        path_to_json = os.path.join(get_project_root(), 'res_experiments', 'hps_common_mlp.json')
+        hps = HyperParams.from_file(path_to_json=path_to_json)
+        model = Model(hps)
         filename = '../data/small_parameters_base.fits'
         history = model.train(filename=filename, path_to_save ='../res_experiments/trained_models/test.pt')
         #model.save_model(path_to_save='../res_experiments/trained_models/test.pt')
@@ -190,6 +202,15 @@ class TestMainMlp():
         model = Model(hps)
         filename = '../data/small_parameters_base.fits'
         history = model.train(filename=filename, path_to_save='../res_experiments/trained_models/test.pt')
+        # model.save_model(path_to_save='../res_experiments/trained_models/test.pt')
+        assert True
+
+    def test_model_partly_ind_train(self):
+        path_to_json = os.path.join(get_project_root(), 'res_experiments', 'hps_partly_independent_mlp.json')
+        hps = HyperParams.from_file(path_to_json=path_to_json)
+        model = Model(hps)
+        filename = '../data/small_parameters_base.fits'
+        history = model.train(filename=filename, path_to_save='../res_experiments/trained_models/partly_test.pt')
         # model.save_model(path_to_save='../res_experiments/trained_models/test.pt')
         assert True
 

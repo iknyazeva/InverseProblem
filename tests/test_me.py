@@ -187,6 +187,19 @@ class TestHinodeME:
         assert expected_V == pytest.approx(spectrum[:5, 1], rel=1e-3)
         assert True
 
+    @pytest.fixture
+    def param_array(self):
+        project_path = get_project_root()
+        filename = project_path / 'data' / 'small_parameters_base.fits'
+        param_array = fits.open(filename)[0].data[:10]
+        return param_array
+
+    def test_hinode_from_array(self, param_array):
+        param_vec = param_array[0]
+        obj = HinodeME(param_vec)
+        spectrum = obj.compute_spectrum(with_ff=True, with_noise=False)
+        assert True
+
     def test_from_refer(self):
         filename = Path(os.getcwd()).parent / 'data' / "20170905_030404.fits"
         refer = fits.open(filename)

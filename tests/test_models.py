@@ -1,11 +1,12 @@
 import torch
 import pytest
+from astropy.io import fits
 import torch.nn.functional as F
 import os
 from inverse_problem import get_project_root
 from inverse_problem.nn_inversion.models import HyperParams
 from inverse_problem.nn_inversion.models import BaseNet, BottomSimpleMLPNet, FullModel, BottomSimpleConv1d, BottomResNet
-from inverse_problem.nn_inversion.models import BottomMLPNet, TopCommonMLPNet, TopIndependentNet
+from inverse_problem.nn_inversion.models import BottomMLPNet, TopCommonMLPNet, TopIndependentNet, ZeroMLP
 from inverse_problem.nn_inversion.main import Model
 from inverse_problem.nn_inversion import models
 
@@ -130,7 +131,7 @@ class TestMLPStack:
 
     @pytest.fixture
     def flat(self):
-        path_to_json = os.path.join(get_project_root(), 'res_experiments', 'hps_independent_mlp.json')
+        path_to_json = os.path.join(get_project_root(), 'res_experiments', 'hps_partly_independent_mlp.json')
         hps = HyperParams.from_file(path_to_json=path_to_json)
         N = hps.batch_size
         d_in = hps.n_input
@@ -138,6 +139,11 @@ class TestMLPStack:
         flat = torch.randn(N, d_in, device=device, dtype=torch.float)
         self.hps = hps
         return flat
+
+    def test_zero_mlp(self, flat):
+        net = ZeroMLP(self.hps)
+        out = net.forward(flat)
+        assert out[0].numpy() == pytest.approx(flat[0].numpy())
 
     def test_bottom_mlp_net(self, flat):
         net = BottomMLPNet(self.hps)
@@ -155,7 +161,7 @@ class TestMLPStack:
         top_out = top_net(top_input)
         assert True
 
-    def test_top_common(self, flat):
+    def test_top_independent(self, flat):
         bot_net = BottomMLPNet(self.hps)
         out = bot_net.forward(flat)
         cont = torch.randn(20, 1, dtype=torch.float)
@@ -165,12 +171,28 @@ class TestMLPStack:
         assert True
 
     def test_full_mlp_stack(self):
-        path_to_json = os.path.join(get_project_root(), 'res_experiments', 'hps_independent_mlp.json')
+        path_to_json = os.path.join(get_project_root(), 'res_experiments', 'hps_partly_independent_mlp.json')
+        filename = get_project_root() / 'data' / 'small_parameters_base.fits'
+        params = fits.open(filename)[0].data
         hps = HyperParams.from_file(path_to_json=path_to_json)
         bottom = getattr(models, hps.bottom_net)
         top = getattr(models, hps.top_net)
         model = Model(hps)
-        x = model.make_loader()
+        x = model.make_loader(data_arr=params)
         x_ = next(iter(x))
         net = FullModel(hps, bottom, top)
         out = net(x_['X'])
+
+    def test_full_independent_mlp_stack(self):
+        path_to_json = os.path.join(get_project_root(), 'res_experiments', 'hps_independent_mlp.json')
+        filename = get_project_root() / 'data' / 'small_parameters_base.fits'
+        params = fits.open(filename)[0].data
+        hps = HyperParams.from_file(path_to_json=path_to_json)
+        bottom = getattr(models, hps.bottom_net)
+        top = getattr(models, hps.top_net)
+        model = Model(hps)
+        train, val = model.make_loader(data_arr=params)
+        x_ = next(iter(train))
+        net = FullModel(hps, bottom, top)
+        out = net(x_['X'])
+        assert True
