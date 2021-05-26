@@ -87,7 +87,6 @@ class Model:
         train_loss = 0.0
         train_it = 0
         total = self.hps.trainset or len(dataloader)
-        log_template = "\nBatch {batch:03d} train_loss: {t_loss:0.4f}"
         with tqdm(desc="batch", total=total) as pbar_outer:
             for i, inputs in enumerate(dataloader):
                 if self.hps.trainset:
@@ -103,8 +102,8 @@ class Model:
                 self.optimizer.step()
                 train_loss += loss.item()
                 train_it += 1
-                pbar_outer.update(1)
-                tqdm.write(log_template.format(batch=i, t_loss=train_loss))
+                if train_it % 100 == 0:
+                    pbar_outer.update(100)
         return train_loss / train_it
 
     def eval_step(self, dataloader):
