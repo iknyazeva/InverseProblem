@@ -12,11 +12,11 @@
   "batch_norm": true,
   "dropout": 0.05,
   "top_layers":  2,
-  "hidden_dims":[200, 100],
+  "hidden_dims":[100, 100],
   "activation": "elu",
   "top_net": "TopCommonMLPNet",
   "bottom_net": "BottomMLPNet",
-  "batch_size": 64,
+  "batch_size": 128,
   "n_epochs": 5,
   "trainset": null,
   "valset": null

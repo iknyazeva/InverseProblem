@@ -202,7 +202,8 @@ class TestMainMlp():
         hps = HyperParams.from_file(path_to_json=path_to_json)
         model = Model(hps)
         filename = '../data/small_parameters_base.fits'
-        history = model.train(filename=filename, path_to_save='../res_experiments/trained_models/test.pt')
+        history = model.train(filename=filename, path_to_save='../res_experiments/trained_models/test.pt',
+                              logdir='../res_experiments/')
         # model.save_model(path_to_save='../res_experiments/trained_models/test.pt')
         assert True
 
@@ -211,7 +212,8 @@ class TestMainMlp():
         hps = HyperParams.from_file(path_to_json=path_to_json)
         model = Model(hps)
         filename = '../data/small_parameters_base.fits'
-        history = model.train(filename=filename, path_to_save='../res_experiments/trained_models/partly_test.pt')
+        history = model.train(filename=filename, path_to_save='../res_experiments/trained_models/partly_test.pt',
+                              logdir='../res_experiments/')
         # model.save_model(path_to_save='../res_experiments/trained_models/test.pt')
         assert True
 

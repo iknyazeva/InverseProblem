@@ -178,8 +178,10 @@ class TopIndependentNet(BaseNet):
 
     def __init__(self, hps: HyperParams):
         super().__init__(hps)
-        layer = MLPReadout(hps.bottom_output + 1, 1, self.activation, self.dropout,
-                           self.batch_norm, hps.top_layers)
+        layer = nn.Sequential(
+                    MLPBlock(hps.bottom_output+1, self.activation, self.dropout, self.batch_norm, hps.hidden_dims),
+                    MLPReadout(hps.hidden_dims[-1], 1, self.activation, self.dropout, self.batch_norm, hps.top_layers)
+        )
         self.task_layers = nn.ModuleList(hps.top_output * [layer])
 
     def forward(self, x):

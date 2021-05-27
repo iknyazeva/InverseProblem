@@ -16,7 +16,7 @@
   "activation": "elu",
   "top_net": "TopIndependentNet",
   "bottom_net": "BottomMLPNet",
-  "batch_size": 64,
+  "batch_size": 128,
   "n_epochs": 5,
   "trainset": null,
   "valset": null
