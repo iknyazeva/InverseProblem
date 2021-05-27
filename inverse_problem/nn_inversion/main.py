@@ -198,6 +198,10 @@ class Model:
                 pbar_outer.update(1)
                 tqdm.write(log_template.format(ep=epoch + 1, t_loss=train_loss,
                                                v_loss=val_loss))
+                if logdir:
+                    with open(os.path.join(logdir, 'history_'+self.hps.hps_name+'.txt'), 'w') as f:
+                        for i, item in enumerate(history):
+                            f.write(f"Train loss in epoch {i}: {item[0]: .4f}, val_loss: {item[1]:.4f}\n")
         return history
 
     def save_model(self, path, epoch=None, loss=None):

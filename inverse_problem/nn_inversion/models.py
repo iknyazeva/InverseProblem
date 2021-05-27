@@ -57,6 +57,7 @@ class HyperParams:
     trainset: int, num of examples to use while training
     valset: int, num of examples to use while evaluation
     """
+    hps_name = attr.ib(default='basic_hps')
     n_input = attr.ib(default=224)
     batch_norm = attr.ib(default=True)
     dropout = attr.ib(default=0.05)
