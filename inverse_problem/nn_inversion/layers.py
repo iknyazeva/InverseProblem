@@ -1,5 +1,6 @@
 import torch.nn as nn
 from torch.nn import Conv1d
+import torch
 
 
 class ConvLayer(nn.Module):
@@ -53,6 +54,7 @@ class MLPlayer(nn.Module):
         super().__init__()
         self.activation = activation
         self.batch_norm = batch_norm
+        #torch.manual_seed(torch.Generator().get_state())
         self.linear = nn.Linear(in_dim, out_dim)
         self.batch_normx = nn.BatchNorm1d(out_dim)
         self.dropout = nn.Dropout(dropout)

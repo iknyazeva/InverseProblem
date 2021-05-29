@@ -164,7 +164,7 @@ class TestMLPStack:
     def test_top_independent(self, flat):
         bot_net = BottomMLPNet(self.hps)
         out = bot_net.forward(flat)
-        cont = torch.randn(20, 1, dtype=torch.float)
+        cont = torch.randn(self.hps.batch_size, 1, dtype=torch.float)
         top_input = torch.cat((out, cont), axis=1)
         top_net = TopIndependentNet(self.hps)
         top_out = top_net(top_input)
