@@ -50,7 +50,7 @@ class CenteredMean(Normalize):
 class NormalizeStandard(Normalize):
     """ Normalize each component to mean and standard deviation"""
 
-    def __init__(self, norm_output=True, **kwargs):
+    def __init__(self, norm_output=False, **kwargs):
         super().__init__(norm_output, **kwargs)
         self.mean = self.spectrum_dict['mean']
         self.std = self.spectrum_dict['std']
@@ -69,7 +69,7 @@ class NormalizeStandard(Normalize):
 class Rescale(Normalize):
     """ Multiply each spectrum component by factor, preserve spectrum shape"""
 
-    def __init__(self, factors=None, cont_scale=None, norm_output=True, **kwargs):
+    def __init__(self, factors=None, cont_scale=None, norm_output=False, **kwargs):
         super().__init__(norm_output, **kwargs)
 
         if factors is None:

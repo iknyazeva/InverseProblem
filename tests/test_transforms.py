@@ -13,9 +13,9 @@ class TestTransforms:
     @pytest.fixture
     def sample_from_database(self):
         project_path = get_project_root()
-        filename = os.path.join(project_path, 'data/parameters_base.fits')
+        filename = os.path.join(project_path, 'data/small_parameters_base.fits')
         source = 'database'
-        sobj = SpectrumDataset(filename, source=source)
+        sobj = SpectrumDataset(param_path=filename, source=source)
         sample = sobj[0]
         return sample
 
@@ -53,7 +53,7 @@ class TestTransforms:
         assert True
 
     def test_mlp_transfrom_rescale(self, sample_from_database):
-        kwargs = {'factors': [1, 1000, 2000, 1000], 'cont_scale': 40000, 'norm_output': True}
+        kwargs = {'factors': [1, 1000, 2000, 1000], 'cont_scale': 40000, 'norm_output': False}
         trsfm = mlp_transform_rescale(**kwargs)
         transformed_sample = trsfm(sample_from_database)
         assert transformed_sample['X']

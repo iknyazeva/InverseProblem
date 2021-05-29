@@ -195,6 +195,8 @@ class TestMainMlp():
         history = model.train(filename=filename, path_to_save='../res_experiments/trained_models/test.pt',
                               logdir='../res_experiments/')
         #model.save_model(path_to_save='../res_experiments/trained_models/test.pt')
+
+
         assert True
 
     def test_model_ind_train(self):
@@ -205,6 +207,8 @@ class TestMainMlp():
         history = model.train(filename=filename, path_to_save='../res_experiments/trained_models/test.pt',
                               logdir='../res_experiments/')
         # model.save_model(path_to_save='../res_experiments/trained_models/test.pt')
+        params_groups_0 = list(zip(*model.net.top.task_layers[0].named_parameters()))
+        params_groups_3 = list(zip(*model.net.top.task_layers[3].named_parameters()))
         assert True
 
     def test_model_partly_ind_train(self):

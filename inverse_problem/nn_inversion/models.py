@@ -73,7 +73,7 @@ class HyperParams:
     logB = attr.ib(default=True)
     factors = attr.ib(default=[1, 1000, 1000, 1000])
     cont_scale = attr.ib(default=40000)
-    norm_output = attr.ib(default=True)
+    norm_output = attr.ib(default=False)
     source = attr.ib(default='database')
     hidden_size = attr.ib(default=100)
     bn = attr.ib(default=1)

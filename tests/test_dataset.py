@@ -48,9 +48,9 @@ class TestSpectrumDataset:
 
     def test_dataset_with_scale_transforms(self):
         project_path = Path(__file__).resolve().parents[1]
-        filename = os.path.join(project_path, 'data/parameters_base.fits')
+        filename = os.path.join(project_path, 'data/small_parameters_base.fits')
         source = 'database'
-        transform = mlp_transform_rescale()
-        sobj = SpectrumDataset(filename, source=source, transform=transform)
+        transform = mlp_transform_rescale(cont_scale=10)
+        sobj = SpectrumDataset(param_path=filename, source=source, transform=transform)
         sample = sobj[1]
         assert True
