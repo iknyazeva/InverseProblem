@@ -13,22 +13,17 @@ from inverse_problem.nn_inversion import models
 from inverse_problem.nn_inversion import transforms
 from inverse_problem.milne_edington.me import HinodeME
 import numpy as np
+from astropy.io import fits
 
 
 class Model:
     """
     Model class for fitting data
-
     Methods:
-
     make_loader(): returns DataLoader
-
     train(): performs model training
-
     _init_transform(): returns transforms for data
-
     _init_optimizer(): returns optimizer for model training
-
     """
 
     def __init__(self, hps: HyperParams):
@@ -51,7 +46,6 @@ class Model:
         """
         Returns: Composition of transforms which will be applied to data
             transforms are taken from hps file
-
         """
         transform_type = self.hps.transform_type
         factors = self.hps.factors
@@ -129,7 +123,6 @@ class Model:
             noise (bool): add noise or not
             ff (bool): with filling factor
             filename (): str, Optional; Path where to load data from
-
         Returns:
             DataLoader
         """
@@ -152,7 +145,6 @@ class Model:
         """
             Function for model training
         Args:
-
             save_model (bool): whether to save checkpoint, if True saves every best validation loss by default
             path_to_save (str):
             save_epoch (list of ints): save checkpoint every given epoch
@@ -162,7 +154,6 @@ class Model:
             noise (): whether to use noise
             ff (): whether to use ff
             tensorboard ():
-
         Returns:
             List, training process history
         """
@@ -206,14 +197,11 @@ class Model:
 
     def save_model(self, path, epoch=None, loss=None):
         """
-
         Args:
             path (str): path to save model to
             epoch (int): optional
             loss (float): optional, validation loss
-
         Returns:
-
         """
         torch.save({
             'epoch': epoch,
@@ -227,7 +215,6 @@ class Model:
         Args:
             checkpoint_path (str): path to load checkpoint from
             **kwargs (): args from train()
-
         """
         checkpoint = torch.load(checkpoint_path, map_location=self.device)
         self.net.load_state_dict(checkpoint['model_state_dict'])
@@ -246,7 +233,6 @@ class Model:
         """ Predicts one pixel
         Args:
         Returns: predicted params, transformed target params, computed lines, cont
-
         """
         hinode = HinodeME.from_refer(idx_0, idx_1, refer)
         param_vec = hinode.param_vector
@@ -260,29 +246,25 @@ class Model:
             predicted = self.net([data['X'][0].unsqueeze(0).to(self.device), data['X'][1].unsqueeze(0).to(self.device)])
         return predicted.cpu(), data['Y'], data['X'][0], data['X'][1]
 
-    def predict_full_image(self, refer, cnn, **kwargs):
+    def predict_full_image(self, refer_path, predicted_tofits, **kwargs):
         """ Predicts full image
         Args:
-            refer - fits lev2
-            cnn - whether the model is cnn, for proper lines output
-
+            refer - path to refer
+            predicted_tofits - path to save prediction or False
         """
-        out = np.zeros(refer[1].data.shape+(self.hps.top_output, ))
-        params = np.zeros(refer[1].data.shape+(11, ))
-        cont = np.zeros(refer[1].data.shape + (1,))
-        if cnn:
-            lines = np.zeros(refer[1].data.shape+(4, 56))
-        else:
-            lines = np.zeros(refer[1].data.shape + (224, ))
-
-        for i in range(out.shape[0]):
-            for t in range(out.shape[1]):
-                out[i, t], params[i, t], lines[i, t], cont[i, t] = self.predict_one_pixel(refer, i, t, **kwargs)
-        return out, params, lines, cont
+        with fits.open(refer_path) as refer:
+            out = np.zeros(refer[1].data.shape+(self.hps.top_output, ))
+            params = np.zeros(refer[1].data.shape+(11, ))
+            for i in range(out.shape[0]):
+                for t in range(out.shape[1]):
+                    out[i, t], params[i, t], _, _ = self.predict_one_pixel(refer, i, t, **kwargs)
+            if predicted_tofits:
+                hdr = fits.getheader(refer_path)
+                fits.writeto(predicted_tofits, out, hdr)
+            return out, params
 
     def tensorboard_flush(self):
         self.tensorboard_writer.flush()
 
     def tensorboard_close(self):
         self.tensorboard_writer.close()
-
