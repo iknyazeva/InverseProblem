@@ -86,14 +86,22 @@ class Model:
                 if self.hps.trainset:
                     if self.hps.trainset == i:
                         break
-                self.optimizer.zero_grad()
                 x = [inputs['X'][0].to(self.device), inputs['X'][1].to(self.device)]
                 # print(x.shape)
                 y = inputs['Y'][:, self.hps.predict_ind].to(self.device)
                 outputs = self.net(x)
-                loss = self.criterion(outputs, y)
-                loss.backward()
-                self.optimizer.step()
+                if self.hps.hps_name == "hps_independent_mlp":
+                    self.optimizer.zero_grad()
+                    losses = [self.criterion(outputs[:, ind], y[:, ind]) for ind in self.hps.predict_ind]
+                    loss = torch.stack(losses).mean()
+                    #loss.backward()
+                    torch.autograd.backward(losses)
+                    self.optimizer.step()
+                else:
+                    self.optimizer.zero_grad()
+                    loss = self.criterion(outputs, y)
+                    loss.backward()
+                    self.optimizer.step()
                 train_loss += loss.item()
                 train_it += 1
                 if train_it % 100 == 0:

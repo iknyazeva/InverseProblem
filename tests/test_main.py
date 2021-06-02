@@ -207,6 +207,7 @@ class TestMainMlp():
         history = model.train(filename=filename, path_to_save='../res_experiments/trained_models/test.pt',
                               logdir='../res_experiments/')
         # model.save_model(path_to_save='../res_experiments/trained_models/test.pt')
+        # list(zip(*self.net.top.task_layers[0].named_parameters()))[1][0].grad
         params_groups_0 = list(zip(*model.net.top.task_layers[0].named_parameters()))
         params_groups_3 = list(zip(*model.net.top.task_layers[3].named_parameters()))
         assert True
