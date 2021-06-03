@@ -1,5 +1,5 @@
 import os
-
+from astropy.io import fits
 import pytest
 import torch
 
@@ -19,10 +19,18 @@ class TestTransforms:
         sample = sobj[0]
         return sample
 
+    def test_normalize_output_array(self):
+        project_path = get_project_root()
+        filename = os.path.join(project_path, 'data/small_parameters_base.fits')
+        params = fits.open(filename)[0].data[5:11]
+        sample = normalize_output(params, mode='range', logB=True)
+        assert True
+
+
     # todo: add asserts for different inputs
     def test_normalize_output(self, sample_from_database):
         y = sample_from_database['Y']
-        sample = normalize_output(y, mode='norm', logB=True)
+        sample = normalize_output(y, mode='range', logB=True)
         assert True
 
     def test_to_tensor(self, sample_from_database):

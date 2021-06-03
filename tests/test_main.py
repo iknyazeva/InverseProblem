@@ -194,11 +194,9 @@ class TestMainMlp():
         filename = '../data/small_parameters_base.fits'
         history = model.train(filename=filename, path_to_save='../res_experiments/trained_models/test.pt',
                               logdir='../res_experiments/')
-        model.save_model(path_to_save='../res_experiments/trained_models/common.pt')
+        model.save_model(path ='../res_experiments/trained_models/common.pt')
         assert True
 
-
-        assert True
 
     def test_model_ind_train(self):
         path_to_json = os.path.join(get_project_root(), 'res_experiments', 'hps_independent_mlp.json')

@@ -50,7 +50,7 @@ class TestSpectrumDataset:
         project_path = Path(__file__).resolve().parents[1]
         filename = os.path.join(project_path, 'data/small_parameters_base.fits')
         source = 'database'
-        transform = mlp_transform_rescale(cont_scale=10)
+        transform = mlp_transform_rescale()
         sobj = SpectrumDataset(param_path=filename, source=source, transform=transform)
         sample = sobj[1]
         assert True

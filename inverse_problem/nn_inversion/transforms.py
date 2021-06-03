@@ -3,6 +3,8 @@ import pickle
 import os
 import numpy as np
 from typing import Callable
+from astropy.io import fits
+
 import torch
 from torchvision import transforms
 
@@ -69,7 +71,7 @@ class NormalizeStandard(Normalize):
 class Rescale(Normalize):
     """ Multiply each spectrum component by factor, preserve spectrum shape"""
 
-    def __init__(self, factors=None, cont_scale=None, norm_output=False, **kwargs):
+    def __init__(self, factors=None, cont_scale=None, norm_output=True, **kwargs):
         super().__init__(norm_output, **kwargs)
 
         if factors is None:
@@ -93,8 +95,8 @@ class Rescale(Normalize):
                 'Y': params}
 
 
-def normalize_output(y, mode='norm', logB=True, **kwargs):
-    norm_y = y.copy()
+def normalize_output(y, mode='range', logB=True, **kwargs):
+    norm_y = np.array(y).reshape(-1, 11).copy()
     allowedmodes = {'norm': ['mean', 'std'],
                     'range': ['max', 'min']
                     }
@@ -103,7 +105,7 @@ def normalize_output(y, mode='norm', logB=True, **kwargs):
                   'max': [5000, 180, 180, 90, 1.5, 100, 38603, 60464, 10, 1, 10],
                   'min': [0, 0, 0, 20, 0, 0.01, 0, 0, -10, 0, -10]}
     if logB:
-        norm_y[0] = np.log1p(y[0])
+        norm_y[:, 0] = np.log1p(norm_y[:, 0])
         kwdefaults['mean'][0] = 5.67
         kwdefaults['std'][0] = 1.16
         kwdefaults['max'][0] = 8.51
@@ -119,10 +121,10 @@ def normalize_output(y, mode='norm', logB=True, **kwargs):
         norm_y = (np.array(norm_y).reshape(1, -1) -
                   np.array(kwargs['mean']).reshape(1, -1)) / np.std(np.array(kwargs['std']).reshape(1, -1))
     if mode == 'range':
-        range_ = np.array(kwargs['max']).reshape(1, -1) - np.array(kwargs['min']).reshape(1, -1)
-        norm_y = (np.array(norm_y).reshape(1, -1) - np.array(kwargs['min']).reshape(1, -1)) / range_
+        range_ = np.array(kwargs['max']).reshape(-1, 1) - np.array(kwargs['min']).reshape(-1, 1)
+        norm_y = (np.array(norm_y).reshape(-1, 11).T - np.array(kwargs['min'])[:, np.newaxis])/range_
 
-    return norm_y
+    return norm_y.T
 
 
 class FlattenSpectrum:
