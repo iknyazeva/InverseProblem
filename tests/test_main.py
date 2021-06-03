@@ -194,7 +194,8 @@ class TestMainMlp():
         filename = '../data/small_parameters_base.fits'
         history = model.train(filename=filename, path_to_save='../res_experiments/trained_models/test.pt',
                               logdir='../res_experiments/')
-        #model.save_model(path_to_save='../res_experiments/trained_models/test.pt')
+        model.save_model(path_to_save='../res_experiments/trained_models/common.pt')
+        assert True
 
 
         assert True
@@ -221,4 +222,28 @@ class TestMainMlp():
                               logdir='../res_experiments/')
         # model.save_model(path_to_save='../res_experiments/trained_models/test.pt')
         assert True
+
+    def test_partly_pretrained(self):
+        path_to_json = os.path.join(get_project_root(), 'res_experiments', 'hps_common_mlp.json')
+        path_to_model = os.path.join(get_project_root(), 'res_experiments', 'trained_models', 'test.pt')
+
+        hps = HyperParams.from_file(path_to_json=path_to_json)
+        model_common = Model(hps)
+        model_common.load_model(path_to_model)
+        pretrained_dict = model_common.net.state_dict()
+        pretrained_dict = {k: v for k, v in pretrained_dict.items() if 'bottom' in k }
+        path_to_json = os.path.join(get_project_root(), 'res_experiments', 'hps_partly_independent_mlp.json')
+        hps = HyperParams.from_file(path_to_json=path_to_json)
+        model_part = Model(hps)
+        model_dict = model_part.net.state_dict()
+        model_dict.update(pretrained_dict)
+        model_part.net.load_state_dict(model_dict)
+        par_0_part = list(zip(*model_part.net.bottom.mlp.named_parameters()))[1][0]
+        par_0_com = list(zip(*model_common.net.bottom.mlp.named_parameters()))[1][0]
+
+
+
+        assert True
+
+
 
