@@ -27,7 +27,7 @@ def compute_metrics(refer, predicted, names):
     mselist = []
     maelist = []
     for i, _ in enumerate(names):
-        r2list.append(np.corrcoef(refer[:, :, i].flatten(), predicted_data[:, :, i].flatten())[0][1] ** 2)
+        r2list.append(np.corrcoef(refer[:, :, i].flatten(), predicted[:, :, i].flatten())[0][1] ** 2)
         mselist.append(mean_squared_error(refer[:, :, i].flatten(), predicted[:, :, i].flatten()))
         maelist.append(mean_absolute_error(refer[:, :, i].flatten(), predicted[:, :, i].flatten()))
     return pd.DataFrame([r2list, mselist, maelist], columns=names, index=['r2', 'mse', 'mae']).T.round(3)
