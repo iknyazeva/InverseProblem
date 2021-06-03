@@ -221,7 +221,7 @@ class TestMainMlp():
         # model.save_model(path_to_save='../res_experiments/trained_models/test.pt')
         assert True
 
-    def test_partly_pretrained(self):
+    def test_partly_pretrained_init(self):
         path_to_json = os.path.join(get_project_root(), 'res_experiments', 'hps_common_mlp.json')
         path_to_model = os.path.join(get_project_root(), 'res_experiments', 'trained_models', 'test.pt')
 
@@ -240,8 +240,59 @@ class TestMainMlp():
         par_0_com = list(zip(*model_common.net.bottom.mlp.named_parameters()))[1][0]
 
 
-
+    def test_load_pretrained_bottom(self):
+        path_to_pretrained_json = os.path.join(get_project_root(), 'res_experiments', 'hps_common_mlp.json')
+        path_to_pretrained_model = os.path.join(get_project_root(), 'res_experiments', 'trained_models', 'test.pt')
+        hps_pretrained = HyperParams.from_file(path_to_json=path_to_pretrained_json)
+        model_common = Model(hps_pretrained)
+        model_common.load_model(path_to_pretrained_model)
+        path_to_json = os.path.join(get_project_root(), 'res_experiments', 'hps_partly_independent_mlp.json')
+        hps = HyperParams.from_file(path_to_json=path_to_json)
+        model_part = Model(hps)
+        model_part.load_pretrained_bottom(path_to_pretrained_model, path_to_pretrained_json)
+        par_0_part = list(zip(*model_part.net.bottom.mlp.named_parameters()))[1][0]
+        par_0_com = list(zip(*model_common.net.bottom.mlp.named_parameters()))[1][0]
         assert True
+
+    def test_partly_pretrained_fit_step(self):
+        path_to_pretrained_json = os.path.join(get_project_root(), 'res_experiments', 'hps_common_mlp.json')
+        path_to_pretrained_model = os.path.join(get_project_root(), 'res_experiments', 'trained_models', 'test.pt')
+        hps_pretrained = HyperParams.from_file(path_to_json=path_to_pretrained_json)
+        model_common = Model(hps_pretrained)
+        model_common.load_model(path_to_pretrained_model)
+        path_to_json = os.path.join(get_project_root(), 'res_experiments', 'hps_partly_independent_mlp.json')
+        hps = HyperParams.from_file(path_to_json=path_to_json)
+        model_part = Model(hps)
+        model_part.load_pretrained_bottom(path_to_pretrained_model, path_to_pretrained_json)
+        train_loader, val_loader = model_part.make_loader(filename='../data/small_parameters_base.fits')
+        loss = model_part.fit_step(train_loader, pretrained_bottom=True)
+        par_0_com = list(zip(*model_common.net.bottom.mlp.named_parameters()))[1][0].detach().numpy()
+        par_0_par = list(zip(*model_part.net.bottom.mlp.named_parameters()))[1][0].detach().numpy()
+
+
+        assert par_0_com == pytest.approx(par_0_par)
+
+    def test_partly_pretrained_train(self):
+        path_to_pretrained_json = os.path.join(get_project_root(), 'res_experiments', 'hps_common_mlp.json')
+        path_to_pretrained_model = os.path.join(get_project_root(), 'res_experiments', 'trained_models', 'test.pt')
+        hps_pretrained = HyperParams.from_file(path_to_json=path_to_pretrained_json)
+        model_common = Model(hps_pretrained)
+        model_common.load_model(path_to_pretrained_model)
+        path_to_json = os.path.join(get_project_root(), 'res_experiments', 'hps_partly_independent_mlp.json')
+        hps = HyperParams.from_file(path_to_json=path_to_json)
+        model_part = Model(hps)
+        model_part.load_pretrained_bottom(path_to_pretrained_model, path_to_pretrained_json)
+        filename = '../data/small_parameters_base.fits'
+        history = model_part.train(filename=filename, path_to_save='../res_experiments/trained_models/partly_test.pt',
+                              pretrained_bottom=True, logdir='../res_experiments/')
+        par_0_com = list(zip(*model_common.net.bottom.mlp.named_parameters()))[1][0].detach().numpy()
+        par_0_par = list(zip(*model_part.net.bottom.mlp.named_parameters()))[1][0].detach().numpy()
+
+
+        assert par_0_com == pytest.approx(par_0_par)
+
+
+
 
 
 

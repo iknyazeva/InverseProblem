@@ -11,7 +11,7 @@ from torch.utils.data import DataLoader
 from inverse_problem.nn_inversion.models import HyperParams, FullModel
 from inverse_problem.nn_inversion import models
 from inverse_problem.nn_inversion import transforms
-from inverse_problem.milne_edington.me import HinodeME
+from inverse_problem.milne_edington.me import HinodeME, me_model
 import numpy as np
 from astropy.io import fits
 
@@ -77,7 +77,18 @@ class Model:
     def _init_tensorboard(self, logdir=None, comment=''):
         return SummaryWriter(log_dir=logdir, comment=comment)
 
-    def fit_step(self, dataloader):
+    def load_pretrained_bottom(self, path_to_model, path_to_json):
+
+        hps = HyperParams.from_file(path_to_json=path_to_json)
+        model_common = Model(hps)
+        model_common.load_model(path_to_model)
+        pretrained_dict = model_common.net.state_dict()
+        pretrained_dict = {k: v for k, v in pretrained_dict.items() if 'bottom' in k}
+        model_dict = self.net.state_dict()
+        model_dict.update(pretrained_dict)
+        self.net.load_state_dict(model_dict)
+
+    def fit_step(self, dataloader, pretrained_bottom=False):
         train_loss = 0.0
         train_it = 0
         total = self.hps.trainset or len(dataloader)
@@ -89,12 +100,18 @@ class Model:
                 x = [inputs['X'][0].to(self.device), inputs['X'][1].to(self.device)]
                 # print(x.shape)
                 y = inputs['Y'][:, self.hps.predict_ind].to(self.device)
-                outputs = self.net(x)
-                if self.hps.hps_name == "hps_independent_mlp":
+                if pretrained_bottom:
+                    with torch.no_grad():
+                        outputs = self.net.bottom(x[0])
+                    outputs = torch.cat((outputs, x[1]), axis=1)
+                    outputs = self.net.top(outputs)
+                else:
+                    outputs = self.net(x)
+                if "independent" in self.hps.hps_name:
                     self.optimizer.zero_grad()
                     losses = [self.criterion(outputs[:, ind], y[:, ind]) for ind in self.hps.predict_ind]
                     loss = torch.stack(losses).mean()
-                    #loss.backward()
+                    # loss.backward()
                     torch.autograd.backward(losses)
                     self.optimizer.step()
                 else:
@@ -134,7 +151,7 @@ class Model:
         Returns:
             DataLoader
         """
-        #if filename is None:
+        # if filename is None:
         #    project_path = Path(__file__).resolve().parents[2]
         #    filename = os.path.join(project_path, 'data/parameters_base.fits')
         if data_arr is None and filename is None:
@@ -148,7 +165,7 @@ class Model:
         val_loader = DataLoader(val_dataset, batch_size=self.hps.batch_size, shuffle=True)
         return train_loader, val_loader
 
-    def train(self, data_arr=None, filename=None, path_to_save=None, save_epoch=[],
+    def train(self, data_arr=None, filename=None, pretrained_bottom = False, path_to_save=None, save_epoch=[],
               ff=True, noise=True, scheduler=False, tensorboard=False, logdir=None, comment=''):
         """
             Function for model training
@@ -165,7 +182,8 @@ class Model:
         Returns:
             List, training process history
         """
-        train_loader, val_loader = self.make_loader(data_arr, filename, ff=ff, noise=noise, val_split=self.hps.val_split)
+        train_loader, val_loader = self.make_loader(data_arr, filename, ff=ff, noise=noise,
+                                                    val_split=self.hps.val_split)
         best_valid_loss = float('inf')
         history = []
         log_template = "\nEpoch {ep:03d} train_loss: {t_loss:0.4f} \
@@ -173,7 +191,7 @@ class Model:
 
         with tqdm(desc="epoch", total=self.hps.n_epochs) as pbar_outer:
             for epoch in range(self.hps.n_epochs):
-                train_loss = self.fit_step(train_loader)
+                train_loss = self.fit_step(train_loader, pretrained_bottom=pretrained_bottom)
                 val_loss = self.eval_step(val_loader)
                 history.append((train_loss, val_loss))
 
@@ -198,7 +216,7 @@ class Model:
                 tqdm.write(log_template.format(ep=epoch + 1, t_loss=train_loss,
                                                v_loss=val_loss))
                 if logdir:
-                    with open(os.path.join(logdir, 'history_'+self.hps.hps_name+'.txt'), 'w') as f:
+                    with open(os.path.join(logdir, 'history_' + self.hps.hps_name + '.txt'), 'w') as f:
                         for i, item in enumerate(history):
                             f.write(f"Train loss in epoch {i}: {item[0]: .4f}, val_loss: {item[1]:.4f}\n")
         return history
@@ -261,8 +279,8 @@ class Model:
             predicted_tofits - path to save prediction or False
         """
         with fits.open(refer_path) as refer:
-            out = np.zeros(refer[1].data.shape+(self.hps.top_output, ))
-            params = np.zeros(refer[1].data.shape+(11, ))
+            out = np.zeros(refer[1].data.shape + (self.hps.top_output,))
+            params = np.zeros(refer[1].data.shape + (11,))
             for i in range(out.shape[0]):
                 for t in range(out.shape[1]):
                     out[i, t], params[i, t], _, _ = self.predict_one_pixel(refer, i, t, **kwargs)
@@ -270,6 +288,18 @@ class Model:
                 hdr = fits.getheader(refer_path)
                 fits.writeto(predicted_tofits, out, hdr)
             return out, params
+
+    def generate_batch_spectrum(self, param_vector):
+        line_vec = (6302.5, 2.5, 1)
+        line_arg = 1000 * (np.linspace(6302.0692255, 6303.2544205, 56) - line_vec[0])
+        spectrum = me_model(param_vector, line_arg, line_vec, with_ff=True, with_noise=True)
+        cont = param_vector[:, 6] + line_vec[2] * param_vector[:, 7]
+        cont = cont*np.amax(spectrum.reshape(-1, 224), axis=1)
+        data = {'X': [spectrum, cont], 'Y': param_vector}
+        data = self.transform(data)
+        return data
+
+
 
     def tensorboard_flush(self):
         self.tensorboard_writer.flush()
