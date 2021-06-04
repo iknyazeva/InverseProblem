@@ -292,7 +292,7 @@ class Model:
             return out, params
 
     def predict_refer(self, refer_path):
-        refer, names = open_param_file(refer_path)
+        refer, names = open_param_file(refer_path, normalize=False)
         shape = refer.shape
         params = refer.reshape(-1, 11)
         predicted = self.predict_by_batches(params, batch_size=1000)

@@ -8,6 +8,7 @@ from inverse_problem.nn_inversion.main import HyperParams, Model
 from inverse_problem import get_project_root
 from inverse_problem.nn_inversion import SpectrumDataset
 from inverse_problem.milne_edington.me import read_full_spectra
+from inverse_problem.nn_inversion.posthoc import compute_metrics, open_param_file
 
 
 class TestMain:
@@ -167,6 +168,15 @@ class TestMainMlp():
         rec0batch = data['X'][0][0].detach().numpy()
         assert rec0ind == pytest.approx(rec0batch)
         assert data['Y'][0].detach().numpy() == pytest.approx(rec0['Y'].detach().numpy())
+
+    def test_generate_spectrum_by_refer(self, common_mlp_rescale_hps):
+        model = Model(common_mlp_rescale_hps)
+        project_path = get_project_root()
+        refer_path = project_path/'res_experiments'/'predictions'/'20170905_030404.fits'
+        refer, names = open_param_file(refer_path, normalize=False)
+        params = refer.reshape(-1, 11)
+        spectrum = model.generate_batch_spectrum(params[:10], noise=False)
+        assert True
 
     def test_predict_from_batch(self, common_mlp_rescale_hps, params):
         model = Model(common_mlp_rescale_hps)
