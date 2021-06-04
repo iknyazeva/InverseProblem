@@ -22,7 +22,7 @@ def open_param_file(path, normalize=True):
     return data, names
 
 
-def compute_metrics(refer, predicted, names):
+def compute_metrics(refer, predicted, names, save_path=None):
     r2list = []
     mselist = []
     maelist = []
@@ -30,7 +30,10 @@ def compute_metrics(refer, predicted, names):
         r2list.append(np.corrcoef(refer[:, :, i].flatten(), predicted[:, :, i].flatten())[0][1] ** 2)
         mselist.append(mean_squared_error(refer[:, :, i].flatten(), predicted[:, :, i].flatten()))
         maelist.append(mean_absolute_error(refer[:, :, i].flatten(), predicted[:, :, i].flatten()))
-    return pd.DataFrame([r2list, mselist, maelist], columns=names, index=['r2', 'mse', 'mae']).T.round(3)
+    df = pd.DataFrame([r2list, mselist, maelist], columns=names, index=['r2', 'mse', 'mae']).T.round(3)
+    if save_path:
+        df.to_csv(save_path)
+    return df
 
 
 def plot_params(data):

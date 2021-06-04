@@ -22,7 +22,10 @@ def test_compute_metrics():
     refer_path = project_path / 'res_experiments' / 'predictions' / '20170905_030404.fits'
     refer, names = open_param_file(refer_path)
     pred_path = project_path / 'res_experiments' / 'predictions' / '20170905_030404_common.fits'
+    save_path = project_path / 'res_experiments' / 'predictions' / 'test.csv'
+
     predicted = fits.open(pred_path)
     predicted_data = predicted[0].data
-    df = compute_metrics(refer, predicted_data, names)
+    df = compute_metrics(refer, predicted_data, names, save_path)
+    # df.to_csv(save_path)
     assert df.shape == (11, 3)
