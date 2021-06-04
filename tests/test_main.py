@@ -6,6 +6,7 @@ from inverse_problem.milne_edington.data_utils import create_small_dataset
 from pathlib import Path
 from inverse_problem.nn_inversion.main import HyperParams, Model
 from inverse_problem import get_project_root
+from inverse_problem.nn_inversion import SpectrumDataset
 from inverse_problem.milne_edington.me import read_full_spectra
 
 
@@ -13,7 +14,7 @@ class TestMain:
 
     @pytest.fixture
     def base_mlp_rescale_hps(self):
-        path_to_json = os.path.join(get_project_root(), 'res_experiments', 'hps_base_mlp.json')
+        path_to_json = os.path.join(get_project_root(), 'res_experiments', 'hps_common_mlp.json')
         hps = HyperParams.from_file(path_to_json=path_to_json)
         return hps
 
@@ -153,6 +154,39 @@ class TestMainMlp():
         path_to_json = os.path.join(get_project_root(), 'res_experiments', 'hps_common_mlp.json')
         hps = HyperParams.from_file(path_to_json=path_to_json)
         return hps
+
+    def test_generate_batch_spectrum(self, common_mlp_rescale_hps, params):
+        model = Model(common_mlp_rescale_hps)
+        data = model.generate_batch_spectrum(params, noise=False)
+        project_path = get_project_root()
+        filename = project_path / 'data' / 'small_parameters_base.fits'
+        source = 'database'
+        sobj = SpectrumDataset(param_path=filename, source=source, transform=model.transform, ff=True, noise=False)
+        rec0 = sobj[0]
+        rec0ind = rec0['X'][0].detach().numpy()
+        rec0batch = data['X'][0][0].detach().numpy()
+        assert rec0ind == pytest.approx(rec0batch)
+        assert data['Y'][0].detach().numpy() == pytest.approx(rec0['Y'].detach().numpy())
+
+    def test_predict_from_batch(self, common_mlp_rescale_hps, params):
+        model = Model(common_mlp_rescale_hps)
+        predicted = model.predict_by_batches(params, batch_size=64)
+        assert True
+
+    def test_predict_by_batches(self,common_mlp_rescale_hps, params):
+        model = Model(common_mlp_rescale_hps)
+        predicted = model.predict_from_batch(params)
+        assert True
+
+    def test_predict_refer(self,common_mlp_rescale_hps):
+        project_path = get_project_root()
+        refer_path = get_project_root()/'res_experiments'/'predictions'/'20170905_030404.fits'
+        model = Model(common_mlp_rescale_hps)
+        predicted = model.predict_refer(refer_path)
+        assert True
+
+
+
 
     def test_model_make_loader_data(self, common_mlp_rescale_hps, params):
         model = Model(common_mlp_rescale_hps)

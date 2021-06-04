@@ -1,5 +1,6 @@
 from inverse_problem.nn_inversion.dataset import SpectrumDataset
 import torch
+from inverse_problem.nn_inversion.posthoc import compute_metrics, open_param_file
 from sklearn.model_selection import train_test_split
 from torch.utils.tensorboard import SummaryWriter
 from torch.utils.data import Subset
@@ -12,6 +13,7 @@ from inverse_problem.nn_inversion.models import HyperParams, FullModel
 from inverse_problem.nn_inversion import models
 from inverse_problem.nn_inversion import transforms
 from inverse_problem.milne_edington.me import HinodeME, me_model
+from inverse_problem.nn_inversion.transforms import normalize_output
 import numpy as np
 from astropy.io import fits
 
@@ -165,7 +167,7 @@ class Model:
         val_loader = DataLoader(val_dataset, batch_size=self.hps.batch_size, shuffle=True)
         return train_loader, val_loader
 
-    def train(self, data_arr=None, filename=None, pretrained_bottom = False, path_to_save=None, save_epoch=[],
+    def train(self, data_arr=None, filename=None, pretrained_bottom=False, path_to_save=None, save_epoch=[],
               ff=True, noise=True, scheduler=False, tensorboard=False, logdir=None, comment=''):
         """
             Function for model training
@@ -289,17 +291,51 @@ class Model:
                 fits.writeto(predicted_tofits, out, hdr)
             return out, params
 
-    def generate_batch_spectrum(self, param_vector):
+    def predict_refer(self, refer_path):
+        refer, names = open_param_file(refer_path)
+        shape = refer.shape
+        params = refer.reshape(-1, 11)
+        predicted = self.predict_by_batches(params, batch_size=1000)
+        return predicted.reshape(shape)
+
+    def predict_by_batches(self, params, batch_size=100):
+
+        length = params.shape[0]
+        n_batches = length//batch_size
+        predict = np.zeros((length, 11))
+        for i in tqdm(range(n_batches)):
+            predict[i*batch_size:batch_size*(i+1), :] = self.predict_from_batch(params[i*batch_size:batch_size*(i+1), :])
+        if n_batches*batch_size < length:
+            predict[n_batches*batch_size:, :] = self.predict_from_batch(params[batch_size*n_batches:, :])
+        return predict
+
+
+
+    def predict_from_batch(self, param_vector, noise=True):
+        data = self.generate_batch_spectrum(param_vector, noise=noise)
+        self.net.eval()
+        with torch.no_grad():
+            predicted = self.net(data['X'])
+        return predicted.cpu().detach().numpy()
+
+    def generate_batch_spectrum(self, param_vector, noise=True):
         line_vec = (6302.5, 2.5, 1)
         line_arg = 1000 * (np.linspace(6302.0692255, 6303.2544205, 56) - line_vec[0])
-        spectrum = me_model(param_vector, line_arg, line_vec, with_ff=True, with_noise=True)
+        spectrum = me_model(param_vector, line_arg, line_vec, with_ff=True, with_noise=noise)
         cont = param_vector[:, 6] + line_vec[2] * param_vector[:, 7]
-        cont = cont*np.amax(spectrum.reshape(-1, 224), axis=1)
-        data = {'X': [spectrum, cont], 'Y': param_vector}
-        data = self.transform(data)
+        cont = cont * np.amax(spectrum.reshape(-1, 224), axis=1) / self.hps.cont_scale
+        cont = torch.from_numpy(cont.reshape(-1, 1)).float().to(self.device)
+        y = normalize_output(param_vector, mode=self.hps.mode, logB=self.hps.logB)
+        y = torch.from_numpy(y).float().to(self.device)
+        if 'rescale' in self.hps.transform_type:
+            rescaled = (np.swapaxes(spectrum, 0, 2) * np.array(self.hps.factors).reshape(4, 1, 1)).swapaxes(0, 2)
+            if 'mlp' in self.hps.transform_type:
+                rescaled = rescaled.reshape(-1, 224, order='F')
+            rescaled = torch.from_numpy(rescaled).float().to(self.device)
+        else:
+            NotImplementedError('Only rescale transform')
+        data = {'X': [rescaled, cont], 'Y': y}
         return data
-
-
 
     def tensorboard_flush(self):
         self.tensorboard_writer.flush()
