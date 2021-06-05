@@ -12,6 +12,7 @@ from torchvision import transforms
 class Normalize:
     """ Basic class for spectrum normalization
     """
+
     def __init__(self, norm_output, **kwargs):
         project_path = Path(__file__).resolve().parents[1].parent
         filename = os.path.join(project_path, 'inverse_problem/nn_inversion/spectrumRanges.pickle')
@@ -77,12 +78,10 @@ class Rescale(Normalize):
         if factors is None:
             self.factors = [1, 1000, 1000, 1000]
             # todo чему равно cont_scale если не задано?
-            self.cont_scale = cont_scale if cont_scale is not None else 40000
-            self.norm_output = norm_output
         else:
             self.factors = factors
-            self.cont_scale = cont_scale if cont_scale is not None else 40000
-            self.norm_output = norm_output
+        self.cont_scale = cont_scale if cont_scale is not None else 40000
+        self.norm_output = norm_output
 
     def __call__(self, sample):
         # output normalization
@@ -95,7 +94,29 @@ class Rescale(Normalize):
                 'Y': params}
 
 
-def normalize_output(y, mode='range', logB=True, **kwargs):
+class BatchRescale(Normalize):
+    def __init__(self, factors=None, cont_scale=None, norm_output=True, **kwargs):
+        super().__init__(norm_output, **kwargs)
+
+        if factors is None:
+            self.factors = [1, 1000, 1000, 1000]
+            # todo чему равно cont_scale если не задано?
+        else:
+            self.factors = factors
+        self.cont_scale = cont_scale if cont_scale is not None else 40000
+        self.norm_output = norm_output
+
+    def __call__(self, sample):
+        # output normalization
+        sample = super().__call__(sample)
+
+        (spectrum, cont), params = sample['X'], sample['Y']
+        spectrum = (np.swapaxes(spectrum, 0, 2) * np.array(self.factors).reshape(4, 1, 1)).swapaxes(0, 2)
+        return {'X': (spectrum, cont / self.cont_scale),
+                'Y': params}
+
+
+def normalize_output(y, mode='range', logB = True, **kwargs):
     norm_y = np.array(y).reshape(-1, 11).copy()
     allowedmodes = {'norm': ['mean', 'std'],
                     'range': ['max', 'min']
@@ -122,7 +143,7 @@ def normalize_output(y, mode='range', logB=True, **kwargs):
                   np.array(kwargs['mean']).reshape(1, -1)) / np.std(np.array(kwargs['std']).reshape(1, -1))
     if mode == 'range':
         range_ = np.array(kwargs['max']).reshape(-1, 1) - np.array(kwargs['min']).reshape(-1, 1)
-        norm_y = (np.array(norm_y).reshape(-1, 11).T - np.array(kwargs['min'])[:, np.newaxis])/range_
+        norm_y = (np.array(norm_y).reshape(-1, 11).T - np.array(kwargs['min'])[:, np.newaxis]) / range_
 
     return norm_y.T
 
@@ -135,6 +156,23 @@ class FlattenSpectrum:
         return {'X': (spectrum, cont),
                 'Y': params}
 
+
+class BatchFlattenSpectrum:
+    def __call__(self, sample):
+        (spectrum, cont), params = sample['X'], sample['Y']
+        spectrum = spectrum.reshape(spectrum.shape[0], -1, order='F')
+
+        return {'X': (spectrum, cont),
+                'Y': params}
+
+class BatchToTensor(object):
+    """Convert np arrays intoTensors."""
+
+    def __call__(self, sample):
+        (spectrum, cont), params = sample['X'], sample['Y']
+
+        return {'X': (torch.from_numpy(spectrum).float(), torch.from_numpy(cont).float()),
+                'Y': torch.from_numpy(params).float()}
 
 class ToTensor(object):
     """Convert np arrays intoTensors."""
@@ -153,6 +191,17 @@ class ToConcatMlp(object):
         (spectrum, cont), params = sample['X'], sample['Y']
         return {'X': torch.cat((spectrum, cont)),
                 'Y': params}
+
+
+def mlp_batch_rescale(**kwargs) -> Callable:
+    allowed_kwargs = {'factors', 'cont_scale', 'norm_output', 'logB', 'mode'}
+    for key in kwargs:
+        if key not in allowed_kwargs:
+            raise KeyError(f'{key} not in allowed keywords: factor, cont_scale')
+    rescale = BatchRescale(**kwargs)
+    flat = BatchFlattenSpectrum()
+    to_tensor = BatchToTensor()
+    return transforms.Compose([rescale, flat, to_tensor]) # transforms.Compose([rescale, flat, to_tensor])
 
 
 def mlp_transform_standard(**kwargs) -> Callable:
@@ -181,6 +230,7 @@ def mlp_transform_rescale(**kwargs) -> Callable:
 
 class ToConv1d(object):
     """Prepare X and y for conv 1d model"""
+
     def __call__(self, sample):
         (spectrum, cont), params = sample['X'], sample['Y']
         spectrum = np.swapaxes(spectrum, 1, 2)

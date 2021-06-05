@@ -183,7 +183,7 @@ class TestMainMlp():
         predicted = model.predict_by_batches(params, batch_size=64)
         assert True
 
-    def test_predict_by_batches(self,common_mlp_rescale_hps, params):
+    def test_predict_by_batches(self, common_mlp_rescale_hps, params):
         model = Model(common_mlp_rescale_hps)
         predicted = model.predict_from_batch(params)
         assert True
@@ -203,8 +203,18 @@ class TestMainMlp():
         train_loader, val_loader = model.make_loader(data_arr=params)
         it = iter(train_loader)
         sample_batch = next(it)
-        assert sample_batch['X'][0].size() == (20, 224)
-        assert sample_batch['Y'].size() == (20, 11)
+        assert sample_batch['X'][0].size() == (128, 224)
+        assert sample_batch['Y'].size() == (128, 11)
+        assert isinstance(sample_batch['X'][0], torch.Tensor)
+        assert isinstance(sample_batch['Y'][0], torch.Tensor)
+
+    def test_model_make_loader_pregen(self, common_mlp_rescale_hps, params):
+        model = Model(common_mlp_rescale_hps)
+        train_loader, val_loader = model.make_loader(data_arr=params, pregen=True)
+        it = iter(train_loader)
+        sample_batch = next(it)
+        assert sample_batch['X'][0].size() == (128, 224)
+        assert sample_batch['Y'].size() == (128, 11)
         assert isinstance(sample_batch['X'][0], torch.Tensor)
         assert isinstance(sample_batch['Y'][0], torch.Tensor)
 
@@ -220,7 +230,7 @@ class TestMainMlp():
 
     def test_model_fit_step(self, common_mlp_rescale_hps):
         model = Model(common_mlp_rescale_hps)
-        train_loader, val_loader = model.make_loader(filename='../data/small_parameters_base.fits')
+        train_loader, val_loader = model.make_loader(filename='../data/small_parameters_base.fits', pregen=True)
         loss = model.fit_step(train_loader)
         loss = model.eval_step(val_loader)
         assert loss > 0
@@ -236,7 +246,7 @@ class TestMainMlp():
         hps = HyperParams.from_file(path_to_json=path_to_json)
         model = Model(hps)
         filename = '../data/small_parameters_base.fits'
-        history = model.train(filename=filename, path_to_save='../res_experiments/trained_models/test.pt',
+        history = model.train(filename=filename, pregen=True, path_to_save='../res_experiments/trained_models/test.pt',
                               logdir='../res_experiments/')
         model.save_model(path ='../res_experiments/trained_models/common.pt')
         assert True

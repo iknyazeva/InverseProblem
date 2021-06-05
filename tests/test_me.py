@@ -3,6 +3,7 @@ from inverse_problem.milne_edington.me import HinodeME, me_model, _compute_spect
     _prepare_zero_model_parameters, generate_noise, read_full_spectra
 from inverse_problem import get_project_root
 import numpy as np
+from inverse_problem.milne_edington.me import BatchHinodeME
 from astropy.io import fits
 import os
 from pathlib import Path
@@ -223,4 +224,17 @@ class TestHinodeME:
         full_spectra = read_full_spectra(cont_scale, files_list=flist)
         assert True
 
+class TestBatchHinodeMe:
 
+    @pytest.fixture
+    def param_batch(self):
+        project_path = get_project_root()
+        filename = project_path / 'data' / 'small_parameters_base.fits'
+        param_batch = fits.open(filename)[0].data
+        return param_batch
+
+    def test_compute_spectrum(self, param_batch):
+        obj = BatchHinodeME(param_batch)
+        spectrum = obj.compute_spectrum(with_ff=True, with_noise=True)
+
+        assert spectrum.shape == (1000, 56, 4)

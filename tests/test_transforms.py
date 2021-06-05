@@ -2,9 +2,9 @@ import os
 from astropy.io import fits
 import pytest
 import torch
-
+from inverse_problem.milne_edington.me import BatchHinodeME
 from inverse_problem import get_project_root
-from inverse_problem.nn_inversion import SpectrumDataset, ToTensor, NormalizeStandard, Rescale
+from inverse_problem.nn_inversion import SpectrumDataset, ToTensor, NormalizeStandard, Rescale, FlattenSpectrum
 from inverse_problem.nn_inversion import mlp_transform_standard, mlp_transform_rescale, conv1d_transform_rescale
 from inverse_problem.nn_inversion.transforms import normalize_output
 
@@ -16,8 +16,17 @@ class TestTransforms:
         filename = os.path.join(project_path, 'data/small_parameters_base.fits')
         source = 'database'
         sobj = SpectrumDataset(param_path=filename, source=source)
-        sample = sobj[0]
+        sample = sobj[:2]
         return sample
+
+    def test_flatten(self):
+        project_path = get_project_root()
+        filename = project_path / 'data' / 'small_parameters_base.fits'
+        param_batch = fits.open(filename)[0].data
+        obj = BatchHinodeME(param_batch)
+        spectrum = obj.compute_spectrum(with_ff=True, with_noise=True)
+        sample = FlattenSpectrum()(spectrum[:3, :])
+        assert True
 
     def test_normalize_output_array(self):
         project_path = get_project_root()

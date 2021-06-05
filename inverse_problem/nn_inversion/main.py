@@ -1,4 +1,4 @@
-from inverse_problem.nn_inversion.dataset import SpectrumDataset
+from inverse_problem.nn_inversion.dataset import SpectrumDataset, PregenSpectrumDataset
 import torch
 from inverse_problem.nn_inversion.posthoc import compute_metrics, open_param_file
 from sklearn.model_selection import train_test_split
@@ -144,7 +144,7 @@ class Model:
             val_it += 1
         return val_loss / val_it
 
-    def make_loader(self, data_arr=None, filename: Path = None, ff=True, noise=True, val_split=0.1) -> DataLoader:
+    def make_loader(self, data_arr=None, filename: Path = None, pregen = False, ff=True, noise=True, val_split=0.1) -> DataLoader:
         """
         Args:
             noise (bool): add noise or not
@@ -158,8 +158,14 @@ class Model:
         #    filename = os.path.join(project_path, 'data/parameters_base.fits')
         if data_arr is None and filename is None:
             raise AssertionError('you need provide data or path to data')
-        transformed_dataset = SpectrumDataset(data_arr=data_arr, param_path=filename, source=self.hps.source,
-                                              transform=self.transform, ff=ff, noise=noise)
+        if pregen:
+            #todo: such a hard coding
+            self.transform = getattr(transforms, 'mlp_batch_rescale')()
+            transformed_dataset = PregenSpectrumDataset(data_arr=data_arr, param_path=filename, source=self.hps.source,
+                                                        transform=self.transform, ff=ff, noise=noise)
+        else:
+            transformed_dataset = SpectrumDataset(data_arr=data_arr, param_path=filename, source=self.hps.source,
+                                                  transform=self.transform, ff=ff, noise=noise)
         train_idx, val_idx = train_test_split(list(range(len(transformed_dataset))), test_size=val_split)
         train_dataset = Subset(transformed_dataset, train_idx)
         val_dataset = Subset(transformed_dataset, val_idx)
@@ -167,7 +173,7 @@ class Model:
         val_loader = DataLoader(val_dataset, batch_size=self.hps.batch_size, shuffle=True)
         return train_loader, val_loader
 
-    def train(self, data_arr=None, filename=None, pretrained_bottom=False, path_to_save=None, save_epoch=[],
+    def train(self, data_arr=None, filename=None, pregen=False, pretrained_bottom=False, path_to_save=None, save_epoch=[],
               ff=True, noise=True, scheduler=False, tensorboard=False, logdir=None, comment=''):
         """
             Function for model training
@@ -184,7 +190,7 @@ class Model:
         Returns:
             List, training process history
         """
-        train_loader, val_loader = self.make_loader(data_arr, filename, ff=ff, noise=noise,
+        train_loader, val_loader = self.make_loader(data_arr, filename, pregen=pregen, ff=ff, noise=noise,
                                                     val_split=self.hps.val_split)
         best_valid_loss = float('inf')
         history = []
