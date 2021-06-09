@@ -5,7 +5,8 @@ import os
 from pathlib import Path
 from inverse_problem.milne_edington.data_utils import get_project_root
 from inverse_problem.nn_inversion import SpectrumDataset, ToTensor, NormalizeStandard, Rescale, FlattenSpectrum
-from inverse_problem.nn_inversion import mlp_transform_standard, mlp_transform_rescale
+from inverse_problem.nn_inversion import PregenSpectrumDataset
+from inverse_problem.nn_inversion import mlp_transform_standard, mlp_transform_rescale, mlp_batch_rescale
 
 
 class TestSpectrumDataset:
@@ -18,6 +19,7 @@ class TestSpectrumDataset:
         sobj = SpectrumDataset(param_path=filename, source=source)
         sample = sobj[0]
         return sample
+
     def test_init_dataset(self):
         project_path = get_project_root()
         filename = project_path / 'data' / 'small_parameters_base.fits'
@@ -50,7 +52,25 @@ class TestSpectrumDataset:
         project_path = Path(__file__).resolve().parents[1]
         filename = os.path.join(project_path, 'data/small_parameters_base.fits')
         source = 'database'
-        transform = mlp_transform_rescale(cont_scale=10)
+        transform = mlp_transform_rescale()
         sobj = SpectrumDataset(param_path=filename, source=source, transform=transform)
         sample = sobj[1]
+        assert sample['X'][1].shape[0]==1
+        assert sample['Y'].shape[0] == 11
+
+
+class TestPregenSpectrumDataset:
+
+    def test_init_dataset(self):
+        project_path = get_project_root()
+        filename = project_path / 'data' / 'small_parameters_base.fits'
+        param_array = fits.open(filename)[0].data[:10]
+        transform = mlp_batch_rescale()
+        #transform=None
+        sobj = PregenSpectrumDataset(data_arr=param_array, transform=transform)
+        sample = sobj[0]
+        assert sample['X'][1].shape[0] == 1
+        assert sample['Y'].shape[0] == 11
         assert True
+
+

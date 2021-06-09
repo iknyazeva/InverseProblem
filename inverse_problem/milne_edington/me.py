@@ -82,6 +82,70 @@ class HinodeME(object):
         return lines
 
 
+class BatchHinodeME(object):
+    """ Compute spectrum I,Q,U,V component based on atmosphere model, class for data loader generation
+       """
+
+    # constant parameters for any instance
+
+    line_vector = (6302.5, 2.5, 1)
+    line_arg = 1000 * (np.linspace(6302.0692255, 6303.2544205, 56) - line_vector[0])
+
+    def __init__(self, param_vec):
+        """
+        Parameters initialization with normalized continuum
+
+        Args:
+            param_vec (array float): list of parameters for milne_edington model, here we don't use batch option from me_model
+                0. B, Field Strength, Hinode range = (0, 5000)
+                1. Theta, Field Inclination, Hinode range = (0, 180)
+                2. Theta, Field Azimuth, Hinode range = (0, 180)
+                3. Doppler Width (Broadening),  Hinode range = (20, 90)
+                4. Damping, Hinode range = (0, 1.5)
+                5. Line Strength, Hinode range = (0.01, 100)
+                6. Source Function S_0
+                7. Source Function gradient S_1
+                8. Doppler Shift, Hinode range = (-10, +10)
+                9. Filling Factor, Hinode range = (0, 1)
+                10. Stray light Doppler shift, Hinode range = (-10, +10)
+
+        """
+        # parameters for inversion
+        param_vec = np.array(param_vec).astype(float)
+        # add broadcasting param_vec.shape
+        assert True == (param_vec.shape[1] == 11), 'For ME model number of parameters should be 11 '
+        self.param_vector = param_vec.astype(float)
+        self.cont = param_vec[:, 6] + self.line_vector[2] * param_vec[:, 7]
+        # self.cont = np.reshape(self.cont, (-1, 1)).astype(float)
+
+    @classmethod
+    def from_parameters_base(cls, parameters_base=None):
+        # file parameter base already in memory
+        param_vector = parameters_base.astype(float).copy()
+        return cls(param_vector)
+
+    @classmethod
+    def from_refer(cls, refer):
+        param_list = [1, 2, 3, 6, 8, 7, 9, 10, 5, 12, 13]
+        param_vec = np.array([refer[i] for i in param_list], dtype='float')
+        return cls(param_vec)
+
+    def compute_spectrum(self, with_ff=True, with_noise=True) -> np.ndarray:
+        """
+        Compute Milne Eddington approximation
+        Args:
+            with_ff (Bool): using model with filling factor
+            with_noise (Bool): whether to add noise
+        Returns: concatenated spectrum
+        """
+        lines = me_model(self.param_vector, self.line_arg, self.line_vector, with_ff=with_ff,
+                         with_noise=with_noise)
+
+        # this cont level matches better with cont level, calculated from real date (includes noise)
+        self.cont = np.amax(lines.reshape(-1, 224), axis=1) * self.cont
+        return lines
+
+
 def me_model(param_vec, line_arg=None, line_vec=None,
              with_ff=True, norm=True, with_noise=True, **kwargs):
     """

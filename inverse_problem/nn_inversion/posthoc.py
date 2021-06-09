@@ -1,5 +1,39 @@
 import matplotlib.pyplot as plt
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+from inverse_problem.nn_inversion.transforms import normalize_output
+from astropy.io import fits
+import numpy as np
+import pandas as pd
+
+
+def open_param_file(path, normalize=True):
+    refer = fits.open(path)
+    print('Open file with 36 available paramters, 11 will be selected')
+    param_list = [1, 2, 3, 6, 8, 7, 33, 10, 5, 12, 13]
+    names = [refer[i].header['EXTNAME'] for i in param_list]
+    print('\n'.join(names))
+    data = np.zeros(shape=(512, 485, 11))
+    for i, idx in enumerate(param_list):
+        data[:, :, i] = refer[idx].data
+    if normalize:
+        shape = data.shape
+        data = normalize_output(data.reshape(-1, 11)).reshape(shape)
+
+    return data, names
+
+
+def compute_metrics(refer, predicted, names, save_path=None):
+    r2list = []
+    mselist = []
+    maelist = []
+    for i, _ in enumerate(names):
+        r2list.append(np.corrcoef(refer[:, :, i].flatten(), predicted[:, :, i].flatten())[0][1] ** 2)
+        mselist.append(mean_squared_error(refer[:, :, i].flatten(), predicted[:, :, i].flatten()))
+        maelist.append(mean_absolute_error(refer[:, :, i].flatten(), predicted[:, :, i].flatten()))
+    df = pd.DataFrame([r2list, mselist, maelist], columns=names, index=['r2', 'mse', 'mae']).T.round(3)
+    if save_path:
+        df.to_csv(save_path)
+    return df
 
 
 def plot_params(data):
@@ -25,6 +59,7 @@ def plot_params(data):
         plt.title(names[i])
         plt.imshow(data[:, :, i], cmap='gray')
         plt.axis('off')
+
 
 
 def metrics(true, pred):
