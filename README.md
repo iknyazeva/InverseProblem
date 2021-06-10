@@ -2,6 +2,9 @@
 
 Source code for solar atmospheric parameters recovering. See usage examples in notebook folder. 
 
+Preprint with the description: https://www.researchgate.net/project/Stockes-Spectral-Profile-Inversion-with-neural-networks
+
+
 
 ## Why?
 
