@@ -2,7 +2,7 @@ import pytest
 from inverse_problem.milne_edington.me import HinodeME, me_model, _compute_spectrum, _prepare_base_model_parameters, \
     _prepare_zero_model_parameters, generate_noise, read_full_spectra
 from inverse_problem import get_project_root
-from inverse_problem.nn_inversion.lm_inversion import lm_inversion, predict_one_pixel, predict_full_image
+from inverse_problem.nn_inversion.lm_inversion import lm_inversion, predict_full_image
 import numpy as np
 from astropy.io import fits
 import os
