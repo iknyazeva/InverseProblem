@@ -26,7 +26,7 @@ class HinodeME(object):
         Parameters initialization with normalized continuum
 
         Args:
-            param_vec (array float): list of parameters for milne_edington model, here we don't use batch option from me_model
+            param_vec (array of float): list of parameters for milne_edington model, here we don't use batch option from me_model
                 0. B, Field Strength, Hinode range = (0, 5000)
                 1. Theta, Field Inclination, Hinode range = (0, 180)
                 2. Theta, Field Azimuth, Hinode range = (0, 180)
@@ -102,7 +102,7 @@ class BatchHinodeME(object):
                 2. Theta, Field Azimuth, Hinode range = (0, 180)
                 3. Doppler Width (Broadening),  Hinode range = (20, 90)
                 4. Damping, Hinode range = (0, 1.5)
-                5. Line Strength, Hinode range = (0.01, 100)
+                5. Line Strength, Hinode,  range = (0.01, 100)
                 6. Source Function S_0
                 7. Source Function gradient S_1
                 8. Doppler Shift, Hinode range = (-10, +10)
@@ -150,9 +150,11 @@ def me_model(param_vec, line_arg=None, line_vec=None,
              with_ff=True, norm=True, with_noise=True, **kwargs):
     """
     Args:
+        param_vec (float ndarray): numpy array with the shape N samples to 11 (number of parameters)
+        with_noise (bool): if need to add noise
+        norm (bool): if normalization to unite amplitude is applied
         line_vec (float,float, float): specific argument for inversion for hinode (6302.5, 2.5, 1)
         line_arg (float ndarray): 1dim array with the spectral line argument, 56 in Hinode case
-        param_vec (float ndarray): shape
         with_ff (Boolean): use model with filling factor
     Returns:
         spectrum lines

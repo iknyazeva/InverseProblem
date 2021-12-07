@@ -6,5 +6,8 @@ torch
 astropy
 requests
 scipy
+pandas
+sklearn
+tensorboard
 tqdm
 
