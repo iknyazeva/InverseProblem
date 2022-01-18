@@ -6,7 +6,7 @@ import os
 from pathlib import Path
 from tqdm import tqdm
 import matplotlib.pyplot as plt
-from google_drive_downloader import GoogleDriveDownloader as gdd
+import gdown
 
 
 def get_project_root() -> Path:
@@ -14,12 +14,22 @@ def get_project_root() -> Path:
 
 
 def download_from_google_disc(fileid=None, dest=None):
+    """
+    Download parameter base file from google disk by fileid
+    Args:
+        fileid (string): fileid of the source value, default value - small parameter database
+        dest (string): destination folder
+
+    Returns:
+
+    """
     if fileid is None:
+
         fileid = '19jkSXHxAPWZvfgo5oxSmvEagme5YLY33'
+    url = 'https://drive.google.com/uc?id=' + fileid
     if dest is None:
         dest = Path(os.getcwd()).parent / 'data' / 'downloaded_parameters_base.fits'
-    gdd.download_file_from_google_drive(file_id=fileid,
-                                        dest_path=dest, showsize=True)
+    gdown.download(url, dest, quiet=False)
 
 
 def create_small_dataset(filename, savename, size=10000):
