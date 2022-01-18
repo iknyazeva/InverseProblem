@@ -11,6 +11,9 @@ class SpectrumDataset(Dataset):
     """
     Args:
         source (str, optional) = source of data, database or fits refer from Hinode
+        download (bool): if download, for downloading parameter base use id  =
+        refer = '1sRgNdX3Fzv4rtrU5TmcUwKxZ-0mniBXi'
+        parameter base - '1PjseALs0r0W0ILrkMNMKw9nOIIObzM4q'
     """
 
     # todo update for download option
@@ -28,7 +31,7 @@ class SpectrumDataset(Dataset):
             noise (): whether to add noise
         """
         if data_arr is None and param_path is None:
-            raise AssertionError('you need provide data or path to data')
+            raise AssertionError('you need provide data or path to data as a string')
 
         self.param_path = param_path
         self.source = source
@@ -36,8 +39,8 @@ class SpectrumDataset(Dataset):
         self.noise = noise
         self.ff = ff
         if self.download:
-            fileid = '12GslrX_J0Pw9jfr23oWoJ5gDb_I91Mj7'
-            download_from_google_disc(fileid=fileid, dest=self.param_path)
+            fileid = '1PjseALs0r0W0ILrkMNMKw9nOIIObzM4q'
+            download_from_google_disc(fileid=fileid, dest=str(self.param_path))
         self.transform = transform
         if data_arr is not None:
             self.param_source = data_arr
@@ -48,7 +51,7 @@ class SpectrumDataset(Dataset):
         if self.source == 'database':
             param_len = self.param_source.shape[0]
         else:
-            param_len = self.param_source.data[1].size
+            param_len = self.param_source[1].data.size
 
         return param_len
 
@@ -87,7 +90,7 @@ class PregenSpectrumDataset(Dataset):
                  ff: bool = True, noise: bool = True):
 
         if data_arr is None and param_path is None:
-            raise AssertionError('you need provide data or path to data')
+            raise AssertionError('you need to provide data or path to data')
 
         self.param_path = param_path
         self.source = source
