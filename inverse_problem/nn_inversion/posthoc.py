@@ -8,7 +8,7 @@ import pandas as pd
 
 def open_param_file(path, normalize=True):
     refer = fits.open(path)
-    print('Open file with 36 available paramters, 11 will be selected')
+    print('Open file with 36 available parameters, 11 will be selected')
     param_list = [1, 2, 3, 6, 8, 7, 9, 10, 5, 12, 13]
     names = [refer[i].header['EXTNAME'] for i in param_list]
     print('\n'.join(names))

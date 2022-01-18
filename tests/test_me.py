@@ -33,7 +33,7 @@ class TestModelMe:
         line_vec = (6302.5, 2.5, 1)
         line_arg = 1000 * (np.linspace(6302.0692255, 6303.2544205, 56) - line_vec[0])
         param_vec = [0., 15., 20., 30., 1., 50., 0.5, 0.5, 0]
-        norm=True
+        norm = True
         B, theta, xi, D, gamma, etta_0, S_0, S_1, Dop_shift = _prepare_base_model_parameters(param_vec, line_vec, norm)
         spectrum = _compute_spectrum(B, theta, xi, D, gamma, etta_0, S_0, S_1, Dop_shift, line_arg, line_vec)
         expected_I = np.array([0.93969684,
@@ -225,6 +225,7 @@ class TestHinodeME:
         flist = [path_to_data + 'SP3D20170905_030404.4C.fits', ]
         full_spectra = read_full_spectra(cont_scale, files_list=flist)
         assert True
+
 
 class TestBatchHinodeMe:
 

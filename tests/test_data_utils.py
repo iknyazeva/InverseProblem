@@ -27,8 +27,7 @@ def test_get_project_root():
 
 def test_download_from_google_disc():
     file_id = '19jkSXHxAPWZvfgo5oxSmvEagme5YLY33'
-    dest_path =  get_project_root() / 'data' / 'small_parameters_base.fits'
+    dest_path = str(get_project_root() / 'data' / 'small_parameters_base.fits')
     download_from_google_disc(fileid=file_id, dest=dest_path)
-    filepath = Path(dest_path)
     parameter_base = fits.open(dest_path)[0].data
-    assert True
+    assert type(parameter_base) == np.ndarray

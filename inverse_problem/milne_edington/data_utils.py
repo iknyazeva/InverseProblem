@@ -29,7 +29,8 @@ def download_from_google_disc(fileid=None, dest=None):
     url = 'https://drive.google.com/uc?id=' + fileid
     if dest is None:
         dest = Path(os.getcwd()).parent / 'data' / 'downloaded_parameters_base.fits'
-    gdown.download(url, dest, quiet=False)
+    #gdown.download(url, dest, quiet=False)
+    gdown.download(id=fileid, output=dest, quiet=False)
 
 
 def create_small_dataset(filename, savename, size=10000):
