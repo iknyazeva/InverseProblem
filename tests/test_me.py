@@ -198,7 +198,7 @@ class TestHinodeME:
         return param_array
 
     def test_hinode_from_array(self, param_array):
-        param_vec = param_array[0]
+        param_vec = param_array[1]
         obj = HinodeME(param_vec)
         spectrum = obj.compute_spectrum(with_ff=True, with_noise=False)
         assert True

@@ -1,35 +1,40 @@
-from pathlib import Path
-import pickle
 import os
-import numpy as np
+import pickle
+from pathlib import Path
 from typing import Callable
-from astropy.io import fits
 
+import numpy as np
 import torch
 from torchvision import transforms
 
 
 class Normalize:
-    """ Basic class for spectrum normalization
+    """
+    Basic class for spectrum normalization
     """
 
-    def __init__(self, norm_output, **kwargs):
+    def __init__(self, norm_output, angle_transformation, **kwargs):
         project_path = Path(__file__).resolve().parents[1].parent
         filename = os.path.join(project_path, 'inverse_problem/nn_inversion/spectrumRanges.pickle')
         with open(filename, 'rb') as handle:
             spectrum_dict = pickle.load(handle)
         self.spectrum_dict = spectrum_dict
         self.norm_output = norm_output
+        self.angle_transformation = angle_transformation
+
         if norm_output:
-            kwdefaults = {'mode': 'range', 'logB': True}
-            for kw in kwdefaults.keys():
-                kwargs.setdefault(kw, kwdefaults[kw])
+            kw_defaults = {'mode': 'range', 'logB': True}
+            for kw in kw_defaults.keys():
+                kwargs.setdefault(kw, kw_defaults[kw])
         self.kwargs = kwargs
 
     def __call__(self, sample):
         params = sample['Y']
         if self.norm_output:
-            params = normalize_output(params, mode=self.kwargs['mode'], logB=self.kwargs['logB'])
+            params = normalize_output(params,
+                                      mode=self.kwargs['mode'],
+                                      logB=self.kwargs['logB'],
+                                      angle_transformation=self.angle_transformation)
         return {'X': sample['X'],
                 'Y': params}
 
@@ -72,26 +77,37 @@ class NormalizeStandard(Normalize):
 class Rescale(Normalize):
     """ Multiply each spectrum component by factor, preserve spectrum shape"""
 
-    def __init__(self, factors=None, cont_scale=None, norm_output=True, **kwargs):
-        super().__init__(norm_output, **kwargs)
+    def __init__(self, factors=None, cont_scale=None, norm_output=True, angle_transformation=False, **kwargs):
+        """
+
+        Args:
+            factors (list of float): factors to multitply each spectrum component for increasing input of QUV relative to I
+            cont_scale (float): scaler factor for continum intensity, default 40000
+            norm_output (bool):
+            angle_transformation:
+            **kwargs:
+        """
+        super().__init__(norm_output, angle_transformation, **kwargs)
 
         if factors is None:
             self.factors = [1, 1000, 1000, 1000]
-            # todo чему равно cont_scale если не задано?
         else:
             self.factors = factors
         self.cont_scale = cont_scale if cont_scale is not None else 40000
         self.norm_output = norm_output
+        self.angle_transformation = angle_transformation
 
     def __call__(self, sample):
-        # output normalization
-        sample = super().__call__(sample)
-
         (spectrum, cont), params = sample['X'], sample['Y']
-        spectrum = spectrum * np.array(self.factors).reshape((1, 4))
 
-        return {'X': (spectrum, cont / self.cont_scale),
-                'Y': params}
+        # data rescaling
+        spectrum = spectrum * np.array(self.factors).reshape((1, 4))
+        cont = cont / self.cont_scale
+
+        # output normalization
+        sample = super().__call__({'X': (spectrum, cont),
+                                   'Y': params})
+        return sample
 
 
 class BatchRescale(Normalize):
@@ -116,35 +132,65 @@ class BatchRescale(Normalize):
                 'Y': params}
 
 
-def normalize_output(y, mode='range', logB = True, **kwargs):
+def normalize_output(y, mode='range', logB=True, angle_transformation=False, **kwargs):
+    """
+    Function for output
+    Args:
+        y (list of float or numpy array): vector with 11 parameters
+        mode (str): type of rescaling, range (rescale to min max) or norm (rescale to mean and standard deviation)
+        logB (bool): apply logarithmic transform to B
+        angle_transformation (bool): angle transformation for inclination and azimuth (parameters with index 1 and 2)
+        **kwargs:
+
+    Returns:
+
+    """
     norm_y = np.array(y).reshape(-1, 11).copy()
     allowedmodes = {'norm': ['mean', 'std'],
-                    'range': ['max', 'min']
-                    }
-    kwdefaults = {'mean': [530, 91, 89, 33, 0.31, 12, 7178, 19567, 0.04, 0.5, 0.36],
-                  'std': [565, 36.4, 52.6, 9.5, 0.21, 11.82, 2898, 5927, 0.04, 0.5, 0.36],
-                  'max': [5000, 180, 180, 90, 1.5, 100, 49866, 60464, 10, 1, 10],
-                  'min': [0, 0, 0, 20, 0, 0.01, 0, 0, -10, 0, -10]}
+                    'range': ['max', 'min']}
+
+    def angle_transform(x):
+        if angle_transformation:
+            return sine_degree(x)
+        else:
+            return x
+
+    def sine_degree(x):
+        return np.sin(x * np.pi / 180)
+
+    kw_defaults = {
+        'mean': [530, angle_transform(91), angle_transform(89), 33, 0.31, 12, 27083, 19567, 0.04, 0.5, 0.36],
+        'std': [565, angle_transform(36.4), angle_transform(52.6), 9.5, 0.21, 11.82, 4112, 5927, 0.04, 0.5, 0.36],
+        'max': [5000, 1 if angle_transformation else 180, 1 if angle_transformation else 180, 90, 1.5, 100, 38603,
+                60464, 10, 1, 10],
+        'min': [0, 0, 0, 20, 0, 0.01, 0, 0, -10, 0, -10]
+    }
+
     if logB:
         norm_y[:, 0] = np.log1p(norm_y[:, 0])
-        kwdefaults['mean'][0] = 5.67
-        kwdefaults['std'][0] = 1.16
-        kwdefaults['max'][0] = 8.51
-        kwdefaults['min'][0] = 0
-    if mode not in allowedmodes.keys():
-        raise ValueError('mode should be norm or range')
+        kw_defaults['mean'][0] = 5.67
+        kw_defaults['std'][0] = 1.16
+        kw_defaults['max'][0] = 8.51
+        kw_defaults['min'][0] = 0
+
+    if angle_transformation:
+        norm_y[:, 1:3] = sine_degree(norm_y[:, 1:3])
+
     for key in kwargs:
         if key not in allowedmodes[mode]:
             raise ValueError('%s keyword not in allowed keywords %s' % (key, allowedmodes[mode]))
+
     for kw in allowedmodes[mode]:
-        kwargs.setdefault(kw, kwdefaults[kw])
+        kwargs.setdefault(kw, kw_defaults[kw])
+
     if mode == 'norm':
         norm_y = (np.array(norm_y).reshape(1, -1) -
                   np.array(kwargs['mean']).reshape(1, -1)) / np.std(np.array(kwargs['std']).reshape(1, -1))
-    if mode == 'range':
+    elif mode == 'range':
         range_ = np.array(kwargs['max']).reshape(-1, 1) - np.array(kwargs['min']).reshape(-1, 1)
         norm_y = (np.array(norm_y).reshape(-1, 11).T - np.array(kwargs['min'])[:, np.newaxis]) / range_
-
+    else:
+        raise ValueError('mode should be norm or range')
     return norm_y.T
 
 
@@ -165,6 +211,7 @@ class BatchFlattenSpectrum:
         return {'X': (spectrum, cont),
                 'Y': params}
 
+
 class BatchToTensor(object):
     """Convert np arrays intoTensors."""
 
@@ -173,6 +220,7 @@ class BatchToTensor(object):
 
         return {'X': (torch.from_numpy(spectrum).float(), torch.from_numpy(cont).float()),
                 'Y': torch.from_numpy(params).float()}
+
 
 class ToTensor(object):
     """Convert np arrays intoTensors."""
@@ -197,11 +245,11 @@ def mlp_batch_rescale(**kwargs) -> Callable:
     allowed_kwargs = {'factors', 'cont_scale', 'norm_output', 'logB', 'mode'}
     for key in kwargs:
         if key not in allowed_kwargs:
-            raise KeyError(f'{key} not in allowed keywords: factor, cont_scale')
+            raise KeyError(f'{key} not in allowed keywords')
     rescale = BatchRescale(**kwargs)
     flat = BatchFlattenSpectrum()
     to_tensor = BatchToTensor()
-    return transforms.Compose([rescale, flat, to_tensor]) # transforms.Compose([rescale, flat, to_tensor])
+    return transforms.Compose([rescale, flat, to_tensor])
 
 
 def mlp_transform_standard(**kwargs) -> Callable:
@@ -217,10 +265,10 @@ def mlp_transform_standard(**kwargs) -> Callable:
 
 
 def mlp_transform_rescale(**kwargs) -> Callable:
-    allowed_kwargs = {'factors', 'cont_scale', 'norm_output', 'logB', 'mode'}
+    allowed_kwargs = {'factors', 'cont_scale', 'norm_output', 'logB', 'mode', 'angle_transformation'}
     for key in kwargs:
         if key not in allowed_kwargs:
-            raise KeyError(f'{key} not in allowed keywords: factor, cont_scale')
+            raise KeyError(f'{key} not in allowed keywords')
 
     rescale = Rescale(**kwargs)
     flat = FlattenSpectrum()
@@ -239,10 +287,10 @@ class ToConv1d(object):
 
 
 def conv1d_transform_rescale(**kwargs) -> Callable:
-    allowed_kwargs = {'factors', 'cont_scale', 'norm_output', 'logB', 'mode'}
+    allowed_kwargs = {'factors', 'cont_scale', 'norm_output', 'logB', 'angle_transformation', 'mode'}
     for key in kwargs:
         if key not in allowed_kwargs:
-            raise KeyError(f'{key} not in allowed keywords: factor, cont_scale')
+            raise KeyError(f'{key} not in allowed keywords')
 
     rescale = Rescale(**kwargs)
     to_conv = ToConv1d()
@@ -254,7 +302,7 @@ def conv1d_transform_standard(**kwargs) -> Callable:
     allowed_kwargs = {'logB', 'norm_output', 'mode'}
     for key in kwargs:
         if key not in allowed_kwargs:
-            raise KeyError(f'{key} not in allowed keywords: factor, cont_scale')
+            raise KeyError(f'{key} not in allowed keywords')
     norm = NormalizeStandard(**kwargs)
     to_tensor = ToTensor()
     to_conv = ToConv1d()
