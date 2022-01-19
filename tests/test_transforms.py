@@ -114,7 +114,7 @@ class TestTransforms:
         kwargs = {'norm_output': True}
         trsfm = mlp_transform_rescale(**kwargs)
         transformed_sample = trsfm(sample_from_database)
-        assert transformed_sample['X']
+        assert transformed_sample['X'][0].shape == 224
 
     def test_mlp_transfrom_rescale_output_angle(self, sample_from_database):
         kwargs = {'norm_output': True, 'angle_transformation': True, 'logB': True}
@@ -126,4 +126,4 @@ class TestTransforms:
         kwargs = {'norm_output': True, 'angle_transformation': True, 'logB': True}
         trsfm = conv1d_transform_rescale(**kwargs)
         transformed_sample = trsfm(sample_from_database)
-        assert transformed_sample['X'][0].shape == (1, 4, 56)
+        assert transformed_sample['X'][0].shape == (4, 56)

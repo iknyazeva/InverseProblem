@@ -281,7 +281,7 @@ class ToConv1d(object):
 
     def __call__(self, sample):
         (spectrum, cont), params = sample['X'], sample['Y']
-        spectrum = np.swapaxes(spectrum, 1, 2)
+        spectrum = np.swapaxes(spectrum, 1, 2).squeeze()
         return {'X': (spectrum, cont),
                 'Y': params}
 
