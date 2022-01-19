@@ -4,7 +4,7 @@ import torch
 from torch import nn
 import torchvision
 from pathlib import Path
-from inverse_problem.nn_inversion.layers import MLPBlock, MLPReadout
+from inverse_problem.nn_inversion.layers import MLPBlock, MLPReadout, ConvBlock
 import attr
 
 
@@ -13,56 +13,41 @@ class HyperParams:
     """
     Attributes:
     n_input: int, input size
-
     predict_ind: list, parameters to predict
-
     top_output: int, output size for top model, i.e. number of parameters to predict
-
     transform_type: str, transformation type to be applied to data
-
     mode:
-
     logB: bool,
-
     factors: list
-
     cont_scale: int? continuum scale ?
-
     norm_output: bool ?
-
     source: str, where to get data from
-
     hidden_size: int, hidden size for TopNet
-
     dropout: float, dropout rate
-
-    bn: ?
-
+    bn: float
     top_net: str, name of top net
-
     bottom_net: str, name of bottom net
-
     activation: str, activation layer in top net
-
     lr: float, learning rate for optimizer
-
     lr_decay: learning rate decay for optimizer
-
     weight_decay: weight rate decay for optimizer
-
     batch_size: int, num of batches
-
     n_epochs: int, num of epochs to train
-
     trainset: int, num of examples to use while training
     valset: int, num of examples to use while evaluation
     """
     hps_name = attr.ib(default='basic_hps')
     n_input = attr.ib(default=224)
+    num_channels = attr.ib(default=4)
+    kernel_size = attr.ib(default=3)
+    padding = attr.ib(default=1)
     batch_norm = attr.ib(default=True)
     dropout = attr.ib(default=0.05)
     hidden_dims = attr.ib(default=[200, 300])
     bottom_output = attr.ib(default=40)
+    conv_output = attr.ib(default=14)
+    out_channels = [64, 64, 128, 128, 256, 256]
+    pool = [None, 'max', None, 'max', None]
     predict_ind = attr.ib(default=[0, 1, 2])
     activation = attr.ib(default='relu')
     val_split = attr.ib(default=0.1)
@@ -71,6 +56,8 @@ class HyperParams:
     transform_type = attr.ib(default='mlp_transform_rescale')
     mode = attr.ib(default='range')
     logB = attr.ib(default=True)
+    angle_transformation = attr.ib(default=True)
+    attention_coefficient = attr.ib(default=0)
     factors = attr.ib(default=[1, 1000, 1000, 1000])
     cont_scale = attr.ib(default=40000)
     norm_output = attr.ib(default=True)
@@ -78,7 +65,7 @@ class HyperParams:
     hidden_size = attr.ib(default=100)
     bn = attr.ib(default=1)
     top_net = attr.ib(default='TopNet')
-    bottom_net = attr.ib(default='BottomSimpleConv1d')
+    bottom_net = attr.ib(default='BottomConv1d')
     lr = attr.ib(default=0.0001)
     lr_decay = attr.ib(default=0.005)
     weight_decay = attr.ib(default=0.0)
@@ -129,13 +116,15 @@ class FullModel(BaseNet):
 
     def forward(self, sample_x):
         x = self.bottom(sample_x[0])
-        x = torch.cat((x, sample_x[1]), axis=1)
+        x = torch.cat((x, sample_x[1]), dim=1)
         x = self.top(x)
         return x
 
 
+# ==== Bottom architectures =======
+
 class BottomMLPNet(BaseNet):
-    """ Arbitraty-layer MLP forward propagation with batch-norm dropout, bottom layer, takes plain input.
+    """ Arbitrary-layer MLP forward propagation with batch-norm dropout, bottom layer, takes plain input.
        """
 
     def __init__(self, hps: HyperParams):
@@ -148,11 +137,16 @@ class BottomMLPNet(BaseNet):
         return x
 
 
-class ZeroMLP(BaseNet):
+class BottomConv1dNet(BaseNet):
     def __init__(self, hps: HyperParams):
         super().__init__(hps)
 
+        self.conv1d = ConvBlock(hps.num_channels, hps.kernel_size, hps.padding, self.activation,
+                                self.dropout, self.batch_norm, hps.out_channels, hps.pool,
+                                hps.conv_output, hps.bottom_output)
+
     def forward(self, x):
+        x = self.conv1d(x)
         return x
 
 
@@ -173,7 +167,7 @@ class TopCommonMLPNet(BaseNet):
 
 class TopIndependentNet(BaseNet):
     """
-        Task independent block, only one unit for target have own weight
+        Task independent block, each separate mlp block for every parameter
     """
 
     def __init__(self, hps: HyperParams):
@@ -181,8 +175,8 @@ class TopIndependentNet(BaseNet):
         layers = []
         for i in range(hps.top_output):
             layers.append(nn.Sequential(
-                    MLPBlock(hps.bottom_output+1, self.activation, self.dropout, self.batch_norm, hps.hidden_dims),
-                    MLPReadout(hps.hidden_dims[-1], 1, self.activation, self.dropout, self.batch_norm, hps.top_layers))
+                MLPBlock(hps.bottom_output + 1, self.activation, self.dropout, self.batch_norm, hps.hidden_dims),
+                MLPReadout(hps.hidden_dims[-1], 1, self.activation, self.dropout, self.batch_norm, hps.top_layers))
             )
 
         self.task_layers = nn.ModuleList(layers)
@@ -191,51 +185,19 @@ class TopIndependentNet(BaseNet):
         return torch.cat(tuple(task_layer(x) for task_layer in self.task_layers), dim=1)
 
 
-class BottomSimpleMLPNet(BaseNet):
-    """ Two-layer MLP forward propagation with dropout, bottom layer, takes plain input.
+class ZeroMLP(BaseNet):
+    """
+    Empty network for construction fully independent network and integrate to Full Model as bottom net
     """
 
     def __init__(self, hps: HyperParams):
         super().__init__(hps)
-        self.fc1 = nn.Linear(hps.n_input, hps.hidden_size)
-        self.fc2 = nn.Linear(hps.hidden_size, hps.bottom_output)
-        self.dropout = nn.Dropout(hps.dropout)
 
     def forward(self, x):
-        x = self.dropout(self.activation(self.fc1(x)))
-        x = self.fc2(x)
         return x
 
 
-class BottomSimpleConv1d(BaseNet):
-    def __init__(self, hps: HyperParams):
-        """
-        Two-layer 1D convolution net with average pooling and batch normalization.
-        Takes 56-channel inputs.
-
-        Args:
-            hps (): HyperParams class
-        """
-        super().__init__(hps)
-
-        self.conv1 = nn.Sequential(nn.Conv1d(4, 32, 2, padding=2),
-                                   nn.AvgPool1d(2),
-                                   nn.ReLU(),
-                                   nn.BatchNorm1d(32))
-        self.conv2 = nn.Sequential(nn.Conv1d(32, 64, 2),
-                                   nn.AvgPool1d(2),
-                                   nn.ReLU(),
-                                   nn.BatchNorm1d(64))
-        self.linear = nn.Sequential(nn.Linear(64 * 14, hps.bottom_output), nn.ReLU())
-
-    def forward(self, x):
-        x = self.conv1(x.squeeze(1))
-        x = self.conv2(x)
-        # print(x.shape)
-        x = x.view(x.size(0), -1)
-        x = self.linear(x)
-        return x
-
+# todo need to integrate to architecture, not testes
 
 class BottomResNet(BaseNet):
     def __init__(self, hps: HyperParams):
@@ -249,21 +211,4 @@ class BottomResNet(BaseNet):
         # print(x.shape)
         x = x.view(-1, 1000)
         x = self.linear(x)
-        return x
-
-
-class TopNet(BaseNet):
-    """ Two-layer forward propagation concatenation, top layer, same building block
-     for all models
-    """
-
-    def __init__(self, hps: HyperParams):
-        super().__init__(hps)
-        self.fc1 = nn.Linear(hps.bottom_output + 1, hps.hidden_size)
-        self.fc2 = nn.Linear(hps.hidden_size, hps.top_output)
-        self.dropout = nn.Dropout(hps.dropout)
-
-    def forward(self, x):
-        x = self.dropout(self.activation(self.fc1(x)))
-        x = self.fc2(x)
         return x
