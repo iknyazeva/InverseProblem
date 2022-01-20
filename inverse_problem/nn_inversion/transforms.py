@@ -13,17 +13,16 @@ class Normalize:
     Basic class for spectrum normalization
     """
 
-    def __init__(self, norm_output, angle_transformation, **kwargs):
+    def __init__(self, norm_output, **kwargs):
         project_path = Path(__file__).resolve().parents[1].parent
         filename = os.path.join(project_path, 'inverse_problem/nn_inversion/spectrumRanges.pickle')
         with open(filename, 'rb') as handle:
             spectrum_dict = pickle.load(handle)
         self.spectrum_dict = spectrum_dict
         self.norm_output = norm_output
-        self.angle_transformation = angle_transformation
 
         if norm_output:
-            kw_defaults = {'mode': 'range', 'logB': True}
+            kw_defaults = {'mode': 'range', 'logB': True, 'angle_transformation': False}
             for kw in kw_defaults.keys():
                 kwargs.setdefault(kw, kw_defaults[kw])
         self.kwargs = kwargs
@@ -34,7 +33,7 @@ class Normalize:
             params = normalize_output(params,
                                       mode=self.kwargs['mode'],
                                       logB=self.kwargs['logB'],
-                                      angle_transformation=self.angle_transformation)
+                                      angle_transformation=self.kwargs['angle_transformation'])
         return {'X': sample['X'],
                 'Y': params}
 
@@ -77,7 +76,7 @@ class NormalizeStandard(Normalize):
 class Rescale(Normalize):
     """ Multiply each spectrum component by factor, preserve spectrum shape"""
 
-    def __init__(self, factors=None, cont_scale=None, norm_output=True, angle_transformation=False, **kwargs):
+    def __init__(self, factors=None, cont_scale=None, norm_output=True, **kwargs):
         """
 
         Args:
@@ -87,7 +86,7 @@ class Rescale(Normalize):
             angle_transformation:
             **kwargs:
         """
-        super().__init__(norm_output, angle_transformation, **kwargs)
+        super().__init__(norm_output, **kwargs)
 
         if factors is None:
             self.factors = [1, 1000, 1000, 1000]
@@ -95,7 +94,6 @@ class Rescale(Normalize):
             self.factors = factors
         self.cont_scale = cont_scale if cont_scale is not None else 40000
         self.norm_output = norm_output
-        self.angle_transformation = angle_transformation
 
     def __call__(self, sample):
         (spectrum, cont), params = sample['X'], sample['Y']
@@ -108,28 +106,6 @@ class Rescale(Normalize):
         sample = super().__call__({'X': (spectrum, cont),
                                    'Y': params})
         return sample
-
-
-class BatchRescale(Normalize):
-    def __init__(self, factors=None, cont_scale=None, norm_output=True, **kwargs):
-        super().__init__(norm_output, **kwargs)
-
-        if factors is None:
-            self.factors = [1, 1000, 1000, 1000]
-            # todo чему равно cont_scale если не задано?
-        else:
-            self.factors = factors
-        self.cont_scale = cont_scale if cont_scale is not None else 40000
-        self.norm_output = norm_output
-
-    def __call__(self, sample):
-        # output normalization
-        sample = super().__call__(sample)
-
-        (spectrum, cont), params = sample['X'], sample['Y']
-        spectrum = (np.swapaxes(spectrum, 0, 2) * np.array(self.factors).reshape(4, 1, 1)).swapaxes(0, 2)
-        return {'X': (spectrum, cont / self.cont_scale),
-                'Y': params}
 
 
 def normalize_output(y, mode='range', logB=True, angle_transformation=False, **kwargs):
@@ -203,25 +179,6 @@ class FlattenSpectrum:
                 'Y': params}
 
 
-class BatchFlattenSpectrum:
-    def __call__(self, sample):
-        (spectrum, cont), params = sample['X'], sample['Y']
-        spectrum = spectrum.reshape(spectrum.shape[0], -1, order='F')
-
-        return {'X': (spectrum, cont),
-                'Y': params}
-
-
-class BatchToTensor(object):
-    """Convert np arrays intoTensors."""
-
-    def __call__(self, sample):
-        (spectrum, cont), params = sample['X'], sample['Y']
-
-        return {'X': (torch.from_numpy(spectrum).float(), torch.from_numpy(cont).float()),
-                'Y': torch.from_numpy(params).float()}
-
-
 class ToTensor(object):
     """Convert np arrays intoTensors."""
 
@@ -239,17 +196,6 @@ class ToConcatMlp(object):
         (spectrum, cont), params = sample['X'], sample['Y']
         return {'X': torch.cat((spectrum, cont)),
                 'Y': params}
-
-
-def mlp_batch_rescale(**kwargs) -> Callable:
-    allowed_kwargs = {'factors', 'cont_scale', 'norm_output', 'logB', 'mode'}
-    for key in kwargs:
-        if key not in allowed_kwargs:
-            raise KeyError(f'{key} not in allowed keywords')
-    rescale = BatchRescale(**kwargs)
-    flat = BatchFlattenSpectrum()
-    to_tensor = BatchToTensor()
-    return transforms.Compose([rescale, flat, to_tensor])
 
 
 def mlp_transform_standard(**kwargs) -> Callable:
@@ -281,7 +227,7 @@ class ToConv1d(object):
 
     def __call__(self, sample):
         (spectrum, cont), params = sample['X'], sample['Y']
-        spectrum = np.swapaxes(spectrum, 1, 2).squeeze()
+        spectrum = np.swapaxes(spectrum, 0, 1)
         return {'X': (spectrum, cont),
                 'Y': params}
 

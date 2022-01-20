@@ -63,7 +63,7 @@ class SpectrumDataset(Dataset):
             col_id = item % self.param_source[1].data.shape[1]
             obj = HinodeME.from_refer(row_id, col_id, self.param_source)
 
-        spectrum = obj.compute_spectrum(with_ff=self.ff, with_noise=self.noise)
+        spectrum = obj.compute_spectrum(with_ff=self.ff, with_noise=self.noise)[0]
         sample = {'X': (spectrum, obj.cont), 'Y': obj.param_vector}
         if self.transform:
             sample = self.transform(sample)
@@ -84,6 +84,10 @@ class SpectrumDataset(Dataset):
 
 
 class PregenSpectrumDataset(Dataset):
+
+    """
+    Generate spectrum by the full array of dataset at first, and iterate through
+    """
 
     def __init__(self, data_arr=None, param_path: Path = None,
                  source='database', transform: Callable = None,
@@ -115,13 +119,13 @@ class PregenSpectrumDataset(Dataset):
         spectrum = obj.compute_spectrum(with_ff=self.ff, with_noise=self.noise)
         samples = {'X': (spectrum, obj.cont), 'Y': obj.param_vector}
 
-        if self.transform:
-            samples = self.transform(samples)
         return samples
 
     def __getitem__(self, item):
-        sample = {'X': (self.samples['X'][0][item, :], self.samples['X'][1][item].unsqueeze(0)),
+        sample = {'X': (self.samples['X'][0][item, :], self.samples['X'][1][item]),
                   'Y': self.samples['Y'][item, :]}
+        if self.transform:
+            sample = self.transform(sample)
 
         return sample
 

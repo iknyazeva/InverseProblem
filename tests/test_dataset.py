@@ -20,12 +20,19 @@ class TestSpectrumDataset:
         sample = sobj[0]
         return sample
 
-    def test_init_dataset(self):
+    def test_init_dataset_param_array(self):
         project_path = get_project_root()
         filename = project_path / 'data' / 'small_parameters_base.fits'
         param_array = fits.open(filename)[0].data[:10]
         sobj = SpectrumDataset(data_arr=param_array)
-        assert True
+        assert sobj[0]['X'][0].shape == (56, 4)
+        assert sobj.param_source.shape[1] == 11
+        assert isinstance(sobj[0]['X'][1], float)
+        assert isinstance(sobj[0]['X'][0], np.ndarray)
+        assert isinstance(sobj[0]['Y'], np.ndarray)
+        assert sobj.__len__() == sobj.param_source.shape[0]
+        assert 224 == sobj[0]['X'][0].size
+        assert 11 == sobj[0]['Y'].size
 
     def test_init_database_dataset(self):
         project_path = get_project_root()
@@ -72,23 +79,64 @@ class TestSpectrumDataset:
         transform = conv1d_transform_rescale(angle_transformation=True)
         sobj = SpectrumDataset(param_path=filename, source=source, transform=transform)
         sample = sobj[1]
-        assert sample['X'][0].shape == (1, 4, 56)
+        assert sample['X'][0].shape == (4, 56)
         assert sample['X'][1].shape[0] == 1
-        assert pytest.approx(1, rel=0.1) == sample['X'][0][0, 0, 0]
+        assert pytest.approx(1, rel=0.1) == sample['X'][0][0, 0]
         assert pytest.approx(1, rel=3) == sample['X'][1]
         assert sample['Y'].shape[0] == 11
 
 
 class TestPregenSpectrumDataset:
 
-    def test_init_dataset(self):
+    def test_init_dataset_data_array(self):
         project_path = get_project_root()
         filename = project_path / 'data' / 'small_parameters_base.fits'
         param_array = fits.open(filename)[0].data[:10]
-        transform = mlp_batch_rescale()
-        # transform=None
-        sobj = PregenSpectrumDataset(data_arr=param_array, transform=transform)
+        sobj = PregenSpectrumDataset(data_arr=param_array)
         sample = sobj[0]
+        assert sample['X'][0].shape == (56, 4)
+        assert isinstance(sample['X'][1], float)
+        assert isinstance(sample['X'][0], np.ndarray)
+        assert isinstance(sample['Y'], np.ndarray)
+        assert 224 == sobj[0]['X'][0].size
+        assert 11 == sobj[0]['Y'].size
+
+    def test_init_dataset_database(self):
+        project_path = get_project_root()
+        filename = project_path / 'data' / 'small_parameters_base.fits'
+        sobj = PregenSpectrumDataset(param_path=filename, source='database')
+        sample = sobj[0]
+        assert sample.param_source.shape[1] == 11
+        assert isinstance(sample['X'][1], float)
+        assert isinstance(sample['X'][0], np.ndarray)
+        assert isinstance(sample['Y'], np.ndarray)
+        assert sobj.__len__() == sobj.param_source.shape[0]
+        assert 224 == sobj[0]['X'][0].size
+        assert 11 == sobj[0]['Y'].size
+
+    def test_dataset_with_mlp_scale_transforms(self):
+        project_path = Path(__file__).resolve().parents[1]
+        filename = os.path.join(project_path, 'data/small_parameters_base.fits')
+        source = 'database'
+        transform = mlp_transform_rescale(angle_transformation=True)
+        sobj = PregenSpectrumDataset(param_path=filename, source=source, transform=transform)
+        sample = sobj[1]
         assert sample['X'][1].shape[0] == 1
+        assert pytest.approx(1, rel=0.1) == sample['X'][0][0]
+        assert pytest.approx(1, rel=3) == sample['X'][1]
         assert sample['Y'].shape[0] == 11
-        assert True
+        assert sample['Y'][1] == pytest.approx(1, rel=1)
+
+
+    def test_dataset_with_conv1d_scale_transforms(self):
+        project_path = Path(__file__).resolve().parents[1]
+        filename = os.path.join(project_path, 'data/small_parameters_base.fits')
+        source = 'database'
+        transform = conv1d_transform_rescale(angle_transformation=True)
+        sobj = PregenSpectrumDataset(param_path=filename, source=source, transform=transform)
+        sample = sobj[1]
+        assert sample['X'][0].shape == (4, 56)
+        assert sample['X'][1].shape[0] == 1
+        assert pytest.approx(1, rel=0.1) == sample['X'][0][0, 0]
+        assert pytest.approx(1, rel=3) == sample['X'][1]
+        assert sample['Y'].shape[0] == 11
