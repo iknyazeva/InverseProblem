@@ -20,7 +20,7 @@ class MlpCommonNet(nn.Module):
                                   batch_norm, number_readout_layers)
 
     def forward(self, sample):
-        x = self.mlp(sample[0])
+        x = self.mlp(sample[0],)
         x = torch.cat((x, sample[1]), dim=1)
         x = self.readout(x)
         return x
