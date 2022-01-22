@@ -6,12 +6,18 @@ import numpy as np
 import pandas as pd
 
 
-def open_param_file(path, normalize=True, **kwargs):
+def open_param_file(path, normalize=True, print_params=True, **kwargs):
+    """
+
+    Args:
+        print_params (object): 
+    """
     refer = fits.open(path)
-    print('Open file with 36 available parameters, 11 will be selected')
     param_list = [1, 2, 3, 6, 8, 7, 9, 10, 5, 12, 13]
     names = [refer[i].header['EXTNAME'] for i in param_list]
-    print('\n'.join(names))
+    if print_params:
+        print('Open file with 36 available parameters, 11 will be selected')
+        print('\n'.join(names))
     data = np.array([refer[i].data for i in param_list], dtype='float').swapaxes(0, 2).swapaxes(0, 1)
     if normalize:
         shape = data.shape
