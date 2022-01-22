@@ -99,9 +99,8 @@ class Rescale(Normalize):
         (spectrum, cont), params = sample['X'], sample['Y']
 
         # data rescaling
-        spectrum = spectrum * np.array(self.factors).reshape((1, 4))
+        spectrum = normalize_spectrum(spectrum, factors=self.factors)
         cont = cont / self.cont_scale
-
         # output normalization
         sample = super().__call__({'X': (spectrum, cont),
                                    'Y': params})
@@ -170,11 +169,29 @@ def normalize_output(y, mode='range', logB=True, angle_transformation=False, **k
     return norm_y.T
 
 
+def normalize_spectrum(spectrum, factors=None):
+    if factors is None:
+        factors = [1, 1000, 1000, 1000]
+
+    assert len(spectrum.shape) == 2 or len(
+        spectrum.shape) == 3, 'spectrum must be 2d (one sample with channel in columns) or 3d array with (samples by 0 axis)'
+    assert spectrum.shape[-1] == 4, 'Need to provide four lines in last dimension'
+
+    if len(spectrum.shape) == 2:
+        spectrum = spectrum * np.array(factors).reshape((1, 4))
+    else:
+        spectrum = (np.swapaxes(spectrum, 0, 2) * np.array(factors).reshape(4, 1, 1)).swapaxes(0, 2)
+
+    return spectrum
+
+
 class FlattenSpectrum:
     def __call__(self, sample):
         (spectrum, cont), params = sample['X'], sample['Y']
-        spectrum = spectrum.flatten(order='F')
-
+        if len(spectrum.shape) == 2:
+            spectrum = spectrum.flatten(order='F')
+        else:
+            spectrum = spectrum.reshape(spectrum.shape[0], -1, order='F')
         return {'X': (spectrum, cont),
                 'Y': params}
 
@@ -184,9 +201,12 @@ class ToTensor(object):
 
     def __call__(self, sample):
         (spectrum, cont), params = sample['X'], sample['Y']
-
-        return {'X': (torch.from_numpy(spectrum).float(), torch.FloatTensor([cont])),
-                'Y': torch.from_numpy(params.astype(np.float32)).flatten()}
+        if isinstance(cont, float):
+            cont = torch.FloatTensor([cont])
+        else:
+            cont = torch.from_numpy(cont).float().reshape(-1,1)
+        return {'X': (torch.from_numpy(spectrum).float(), cont),
+                'Y': torch.from_numpy(params.astype(np.float32)).squeeze()}
 
 
 class ToConcatMlp(object):
@@ -227,7 +247,10 @@ class ToConv1d(object):
 
     def __call__(self, sample):
         (spectrum, cont), params = sample['X'], sample['Y']
-        spectrum = np.swapaxes(spectrum, 0, 1)
+        if len(spectrum.shape) == 2:
+            spectrum = np.swapaxes(spectrum, 0, 1)
+        else:
+            spectrum = np.swapaxes(spectrum, 1, 2)
         return {'X': (spectrum, cont),
                 'Y': params}
 

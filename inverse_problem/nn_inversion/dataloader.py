@@ -11,8 +11,8 @@ from inverse_problem.nn_inversion import transforms
 
 
 def make_loader(data_arr=None, filename: Path = None, pregen=False, ff=True, noise=True,
-                val_split=0.1, source="database", transform_name="mlp_transform_rescale", batch_size=64) -> DataLoader:
-
+                val_split=0.1, source="database", transform_name="mlp_transform_rescale", batch_size=64,
+                **kwargs) -> DataLoader:
     """
 
     Args:
@@ -29,7 +29,14 @@ def make_loader(data_arr=None, filename: Path = None, pregen=False, ff=True, noi
 
     if data_arr is None and filename is None:
         raise AssertionError('you need provide data as array or path to data')
-    transform = getattr(transforms, transform_name)()
+
+    if transform_name is not None:
+        kw_defaults = {'mode': 'range', 'logB': True, 'angle_transformation': True}
+        for kw in kw_defaults.keys():
+            kwargs.setdefault(kw, kw_defaults[kw])
+        transform = getattr(transforms, transform_name)(**kwargs)
+    else:
+        transform = None
 
     if pregen:
         transformed_dataset = PregenSpectrumDataset(data_arr=data_arr, param_path=filename, source=source,
@@ -41,5 +48,5 @@ def make_loader(data_arr=None, filename: Path = None, pregen=False, ff=True, noi
     train_dataset = Subset(transformed_dataset, train_idx)
     val_dataset = Subset(transformed_dataset, val_idx)
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=True)
+    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
     return train_loader, val_loader

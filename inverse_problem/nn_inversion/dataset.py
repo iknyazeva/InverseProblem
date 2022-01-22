@@ -108,7 +108,7 @@ class PregenSpectrumDataset(Dataset):
         elif self.source == 'refer':
             param_list = [1, 2, 3, 6, 8, 7, 9, 10, 5, 12, 13]
             refer = fits.open(self.param_path)
-            param_source = np.array([refer[i] for i in param_list], dtype='float')
+            param_source = np.array([refer[i].data for i in param_list], dtype='float').swapaxes(0, 2).swapaxes(0, 1).reshape(-1, 11)
         else:
             raise AssertionError('source parameter should be data or from \'database\' or \'refer\'')
         self.samples = self._init_dataset(param_source)
@@ -119,13 +119,14 @@ class PregenSpectrumDataset(Dataset):
         spectrum = obj.compute_spectrum(with_ff=self.ff, with_noise=self.noise)
         samples = {'X': (spectrum, obj.cont), 'Y': obj.param_vector}
 
+        if self.transform:
+            samples = self.transform(samples)
         return samples
 
     def __getitem__(self, item):
         sample = {'X': (self.samples['X'][0][item, :], self.samples['X'][1][item]),
                   'Y': self.samples['Y'][item, :]}
-        if self.transform:
-            sample = self.transform(sample)
+
 
         return sample
 
