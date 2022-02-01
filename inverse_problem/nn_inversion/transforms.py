@@ -118,25 +118,18 @@ def normalize_output(y, mode='range', logB=True, angle_transformation=False, **k
         **kwargs:
 
     Returns:
-
     """
     norm_y = np.array(y).reshape(-1, 11).copy()
     allowedmodes = {'norm': ['mean', 'std'],
                     'range': ['max', 'min']}
 
-    def angle_transform(x):
-        if angle_transformation:
-            return sine_degree(x)
-        else:
-            return x
-
     def sine_degree(x):
         return np.sin(x * np.pi / 180)
 
     kw_defaults = {
-        'mean': [530, angle_transform(91), angle_transform(89), 33, 0.31, 12, 27083, 19567, 0.04, 0.5, 0.36],
-        'std': [565, angle_transform(36.4), angle_transform(52.6), 9.5, 0.21, 11.82, 4112, 5927, 0.04, 0.5, 0.36],
-        'max': [5000, 1 if angle_transformation else 180, 1 if angle_transformation else 180, 90, 1.5, 100, 38603,
+        'mean': [530, 91, 89, 33, 0.31, 12, 27083, 19567, 0.04, 0.5, 0.36],
+        'std': [565, 36.4, 52.6, 9.5, 0.21, 11.82, 4112, 5927, 0.04, 0.5, 0.36],
+        'max': [5000, 180, 180, 90, 1.5, 100, 38603,
                 60464, 10, 1, 10],
         'min': [0, 0, 0, 20, 0, 0.01, 0, 0, -10, 0, -10]
     }
@@ -149,7 +142,13 @@ def normalize_output(y, mode='range', logB=True, angle_transformation=False, **k
         kw_defaults['min'][0] = 0
 
     if angle_transformation:
+        norm_y[:, 1:3] -= 90
         norm_y[:, 1:3] = sine_degree(norm_y[:, 1:3])
+
+        kw_defaults['mean'][1:3] = sine_degree(91), sine_degree(89)
+        kw_defaults['std'][1:3] = sine_degree(36.4), sine_degree(52.6)
+        kw_defaults['max'][1:3] = 1, 1
+        kw_defaults['min'][1:3] = -1, -1
 
     for key in kwargs:
         if key not in allowedmodes[mode]:
@@ -167,6 +166,47 @@ def normalize_output(y, mode='range', logB=True, angle_transformation=False, **k
     else:
         raise ValueError('mode should be norm or range')
     return norm_y.T
+
+
+def inverse_transformation(params_to_transform, inv_logB=True, inv_angle_transformation=False):
+    kw_defaults = {
+        'mean': [530, 91, 89, 33, 0.31, 12, 27083, 19567, 0.04, 0.5, 0.36],
+        'std': [565, 36.4, 52.6, 9.5, 0.21, 11.82, 4112, 5927, 0.04, 0.5, 0.36],
+        'max': [5000, 180, 180, 90, 1.5, 100, 38603,
+                60464, 10, 1, 10],
+        'min': [0, 0, 0, 20, 0, 0.01, 0, 0, -10, 0, -10]
+    }
+
+    if inv_logB:
+        kw_defaults['mean'][0] = 5.67
+        kw_defaults['std'][0] = 1.16
+        kw_defaults['max'][0] = 8.51
+        kw_defaults['min'][0] = 0
+
+    def sine_degree(x):
+        return np.sin(x * np.pi / 180)
+
+    if inv_angle_transformation:
+        kw_defaults['mean'][1:3] = sine_degree(91), sine_degree(89)
+        kw_defaults['std'][1:3] = sine_degree(36.4), sine_degree(52.6)
+        kw_defaults['max'][1:3] = 1, 1
+        kw_defaults['min'][1:3] = -1, -1
+
+    params_range = np.array(kw_defaults['max']).reshape(-1, 1) - np.array(kw_defaults['min']).reshape(-1, 1)
+
+    transformed_params = params_to_transform.reshape(-1, 11).T * params_range + np.array(kw_defaults['min'])[:,
+                                                                                np.newaxis]
+
+    transformed_params = transformed_params.T
+
+    if inv_logB:
+        transformed_params[:, 0] = np.exp(transformed_params[:, 0])
+
+    if inv_angle_transformation:
+        transformed_params[:, 1:3] = np.arcsin(transformed_params[:, 1:3]) * 180 / np.pi
+        transformed_params[:, 1:3] += 90
+
+    return transformed_params
 
 
 def normalize_spectrum(spectrum, factors=None):

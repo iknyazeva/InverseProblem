@@ -112,7 +112,6 @@ class PregenSpectrumDataset(Dataset):
         else:
             raise AssertionError('source parameter should be data or from \'database\' or \'refer\'')
         self.samples = self._init_dataset(param_source)
-        # self.transform
 
     def _init_dataset(self, param_source):
         obj = BatchHinodeME(param_source)
@@ -126,7 +125,6 @@ class PregenSpectrumDataset(Dataset):
     def __getitem__(self, item):
         sample = {'X': (self.samples['X'][0][item, :], self.samples['X'][1][item]),
                   'Y': self.samples['Y'][item, :]}
-
 
         return sample
 
