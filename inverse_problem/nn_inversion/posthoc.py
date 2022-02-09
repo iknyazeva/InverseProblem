@@ -12,6 +12,8 @@ from inverse_problem.nn_inversion.transforms import normalize_output
 from astropy.io import fits
 import numpy as np
 import pandas as pd
+import seaborn as sns
+import pylab
 
 
 def open_param_file(path, normalize=True, print_params=True, **kwargs):
@@ -153,7 +155,7 @@ def prepare_real_mlp(sp_folder, date, factors=None, cont_scale=None, device=None
     return real_x
 
 
-def plot_pred_vs_refer(predicted, refer, output_index=0, name=None):
+def plot_pred_vs_refer(predicted, refer, output_index=0, name=None, save_path='../', title=''):
     names = ['Field Strength',
              'Field Inclination',
              'Field Azimuth',
@@ -168,16 +170,19 @@ def plot_pred_vs_refer(predicted, refer, output_index=0, name=None):
     if name is None:
         name = names[output_index]
     r2, mae, mse = compute_metrics(refer, predicted, output_index)
-    fig, axs = plt.subplots(nrows=1, ncols=2, figsize=(12, 6))
+    fig, axs = plt.subplots(nrows=1, ncols=2, figsize=(9, 4))
     axs[0].imshow(predicted.reshape(refer.shape)[:, :, output_index], cmap='gray')
     axs[0].set_title("Predicted")
     axs[1].imshow(refer[:, :, output_index], cmap='gray')
     axs[1].set_title("True output")
     axs[0].set_axis_off()
     axs[1].set_axis_off()
-    plt.suptitle(f"Model results for {name} \n\n Quality metrics: r2 = {r2:.3f}, mse = {mse:.5f}, mae = {mae:.5f} ",
+    plt.suptitle(f"Model results for {name}",
                  fontsize=16)
+    # plt.suptitle(f"Model results for {name} \n\n Quality metrics: r2 = {r2:.3f}, mse = {mse:.5f}, mae = {mae:.5f} ",
+    #              fontsize=16)
     plt.tight_layout()
+    fig.savefig(save_path + "pred_vs_refer_" + title + ".pdf")
 
 
 def plot_params(data, names=None):
@@ -245,7 +250,7 @@ def plot_analysis_graphs(refer, predicted, names, title=None, index=0, save_path
     fig.delaxes(axs[2][3])
 
     if save_path:
-        fig.savefig(save_path + ".png")
+        fig.savefig(save_path + ".pdf")
     plt.show()
 
 
@@ -310,104 +315,115 @@ def plot_analysis_hist2d(refer, predicted, names=None, index=0, title=None, bins
     plt.show()
 
 
-def plot_analysis_hist2d_up(refer, predicted_mu, predicted_sigma, names=None, index=0, title=None, bins=100,
-                            save_path=None):
-    """
+
+def plot_analysis_hist2d_unc(names, refer, predicted_mu, predicted_sigma, mask=False, index=0, save_path='', title='', bins=100):
+    '''
         draws 2d graphs:
         1. (x_true - x_pred)/sigma_pred vs x_true,
         2. (x_true - x_pred) vs sigma_pred,
         3. x_true vs sigma_pred,
-    """
-    if not title:
-        title = [r'$\left(x_{true} - x_{pred}\right) / \sigma_{pred}$ vs $x_{true}$',
-                 r'$\sigma_{pred}$ vs $x_{true} - x_{pred}$',
-                 r'$\sigma_{pred}$ vs $x_{true}$'][index]
+        4. x_pred vs x_true.
+        5. (x_pred-x_true) vs x_true
+        param index: number of a graph, from 0 to 2
+        return: saves the graph to the ../img/ directory
+    '''
 
-    if names is None:
-        names = ['Field Strength',
-                 'Field Inclination',
-                 'Field Azimuth',
-                 'Doppler Width',
-                 'Damping',
-                 'Line Strength',
-                 'S_0',
-                 'S_1',
-                 'Doppler Shift',
-                 'Filling Factor',
-                 'Stray light Doppler shift']
+    refer = refer.reshape(-1, 11)
+    predicted_mu = predicted_mu.reshape(-1, 11)
+    predicted_sigma = predicted_sigma.reshape(-1, 11)
 
-    refer_flat = refer.reshape(-1, 11)
-    predicted_mu_flat = predicted_mu.reshape(-1, 11)
-    predicted_sigma_flat = predicted_sigma.reshape(-1, 11)
+    if mask:
+        t_mask = np.any(refer.mask, axis=1)
+        refer = refer.data[~t_mask]
+        predicted_mu = predicted_mu[~t_mask]
+        predicted_sigma = predicted_sigma[~t_mask]
 
-    fig, axs = plt.subplots(3, 4, figsize=(19, 15), constrained_layout=True)
-    fig.suptitle(title, fontsize=16)
+    titles_for_saving = ['x_true vs (x_true - x_pred)\sigma_pred',
+                         'x_true - x_pred vs sigma_pred',
+                         'x_true vs sigma_pred',
+                         'x_true vs x_pred',
+                         '(x_pred - x_true)/x_true vs x_true']
 
+
+    fig, axs = pylab.subplots(3, 4, figsize=(15, 12))
+    # fig, axs = pylab.subplots(1, 4, figsize=(16, 5))
     for i, ax in enumerate(axs.flat[:-1]):
         if index == 0:
-            X, Y = refer_flat[:, i], (refer_flat[:, i] - predicted_mu_flat[:, i]) / predicted_sigma_flat[:, i]
+            X, Y = refer[:, i], (refer[:, i] - predicted_mu[:, i]) / predicted_sigma[:, i]
         elif index == 1:
-            X, Y = refer_flat[:, i] - predicted_mu_flat[:, i], predicted_sigma_flat[:, i]
+            X, Y = refer[:, i] - predicted_mu[:, i], predicted_sigma[:, i]
         elif index == 2:
-            X, Y = refer_flat[:, i], predicted_sigma_flat[:, i]
+            X, Y = refer[:, i], predicted_sigma[:, i]
+        elif index == 3:
+            X, Y = refer[:, i], predicted_mu[:, i]
         else:
-            raise ValueError
-
+            X, Y = refer[:, i], (predicted_mu[:, i] - refer[:, i])/refer[:, i]
         ax.set_title(names[i], weight='bold')
         plot_params = ax.hist2d(X, Y, bins=bins, norm=LogNorm())
-
+        ymin, ymax = np.percentile(Y, 0.01), np.percentile(Y, 99.99)
+        xmin, xmax = np.percentile(X, 0.01), np.percentile(X, 99.99)
+        ax.axis(ymin=ymin, ymax=ymax, xmin=xmin, xmax=xmax)
+    font = 16
+    y_position, x_position = 0.01, 0.5
     if index == 0:
-        fig.supxlabel(r'$x_{true}$')
-        fig.supylabel(r'$\left(x_{true} - x_{pred}\right)/ \sigma_{pred}$')
+        fig.text(x_position, y_position, r'$x_{true}$', ha='center', fontsize=font)
+        fig.text(0.01, 0.5, r'$(x_{true} - x_{pred})/ \sigma_{pred}$', va='center', rotation='vertical', fontsize=font)
     elif index == 1:
-        fig.supxlabel(r'$x_{true} - x_{pred}$')
-        fig.supylabel(r'$\sigma_{pred}$')
+        fig.text(x_position, y_position, r'$x_{true} - x_{pred}$', ha='center', fontsize=font)
+        fig.text(0.01, 0.5, r'$\sigma_{pred}$', va='center', rotation='vertical', fontsize=font)
     elif index == 2:
-        fig.supxlabel(r'$x_{true}$')
-        fig.supylabel(r'$\sigma_{pred}$')
+        fig.text(x_position, y_position, r'$x_{true}$', ha='center', fontsize=font)
+        fig.text(0.01, 0.5, r'$\sigma_{pred}$', va='center', rotation='vertical', fontsize=font)
+    elif index == 3:
+        fig.text(x_position, y_position, r'$x_{true}$', ha='center', fontsize=font)
+        fig.text(0.01, 0.5, r'$x_{pred}$', va='center', rotation='vertical', fontsize=font)
     else:
-        raise ValueError
+        fig.text(x_position, y_position, r'$x_{true}$', ha='center', fontsize=font)
+        fig.text(0.01, 0.5, r'$(x_{pred} - x_{true})/x_{true}$', va='center', rotation='vertical', fontsize=font)
+
 
     fig.set_facecolor('xkcd:white')
+    # fig.delaxes(axs[3])
     fig.delaxes(axs[2][3])
+    # fig.suptitle(title)
+    pylab.tight_layout(pad=4)
 
-    if save_path:
-        fig.savefig(save_path + ".png")
-
-    plt.subplots_adjust(right=0.8)
-    cax = plt.axes([0.85, 0.15, 0.05, 0.7])
-
+    cax = plt.axes([0.8, 0.08, 0.02, 0.2])
     plt.colorbar(plot_params[3], cax=cax)
-    plt.show()
+
+    fig.savefig(save_path + title + "_" + titles_for_saving[index] + ".pdf")
+    pylab.show()
 
 
-def plot_hist_params_comparison(pars_arr1, pars_arr2, pars_names, plot_name='params_hist', bins=100, save_path=None):
+
+
+def plot_hist_params_comparison(pars_arr1, pars_arr2, pars_names, plot_name='', bins=100, save_path=None):
     pars_arr1 = pars_arr1.reshape(-1, 11)
     pars_arr2 = pars_arr2.reshape(-1, 11)
 
-    fig, axs = plt.subplots(3, 4, figsize=(19, 15), constrained_layout=True)
+    fig, axs = pylab.subplots(3, 4, figsize=(20, 12), constrained_layout=True)
 
+    # for i, ax in enumerate(axs[:3]):
     for i, ax in enumerate(axs.flat[:-1]):
         ax.set_yscale('log')
         ax.set_title(pars_names[i], weight='bold')
         # ax.set_xlim(0, 1)
 
-        #sns.histplot(
-        #    pars_arr1[:, i], ax=ax, bins=bins, color='blue', label="predicted"
-        #)
-        #sns.histplot(
-        #    pars_arr2[:, i], ax=ax, bins=bins, color='red', alpha=0.6, label='refer'
-        #)
+        sns.histplot(
+           pars_arr1[:, i], ax=ax, bins=bins, color='blue', label="predicted"
+        )
+        sns.histplot(
+           pars_arr2[:, i], ax=ax, bins=bins, color='red', alpha=0.5, label='refer'
+        )
 
     fig.set_facecolor('xkcd:white')
 
     h, l = ax.get_legend_handles_labels()
-    axs[2][3].legend(h, l, borderaxespad=0)
+    axs[2][3].legend(h, l, borderaxespad=0, loc='upper left')
     axs[2][3].axis("off")
 
     if save_path:
-        fig.savefig(save_path + ".png")
-    plt.suptitle(plot_name, fontsize=18)
+        fig.savefig(save_path + "hists_" + plot_name + ".pdf")
     plt.show()
 
 def open_spectrum_data(sp_folder, date, idx):
