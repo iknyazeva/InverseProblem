@@ -123,8 +123,8 @@ def normalize_output(y, mode='range', logB=True, angle_transformation=False, **k
     allowedmodes = {'norm': ['mean', 'std'],
                     'range': ['max', 'min']}
 
-    def sine_degree(x):
-        return np.sin(x * np.pi / 180)
+    def cosine_degree(x):
+        return np.cos(x * np.pi / 180)
 
     kw_defaults = {
         'mean': [530, 91, 89, 33, 0.31, 12, 27083, 19567, 0.04, 0.5, 0.36],
@@ -142,11 +142,10 @@ def normalize_output(y, mode='range', logB=True, angle_transformation=False, **k
         kw_defaults['min'][0] = 0
 
     if angle_transformation:
-        norm_y[:, 1:3] -= 90
-        norm_y[:, 1:3] = sine_degree(norm_y[:, 1:3])
+        norm_y[:, 1:3] = cosine_degree(norm_y[:, 1:3])
 
-        kw_defaults['mean'][1:3] = sine_degree(91), sine_degree(89)
-        kw_defaults['std'][1:3] = sine_degree(36.4), sine_degree(52.6)
+        kw_defaults['mean'][1:3] = cosine_degree(91), cosine_degree(89)
+        kw_defaults['std'][1:3] = cosine_degree(36.4), cosine_degree(52.6)
         kw_defaults['max'][1:3] = 1, 1
         kw_defaults['min'][1:3] = -1, -1
 
@@ -183,12 +182,12 @@ def inverse_transformation(params_to_transform, inv_logB=True, inv_angle_transfo
         kw_defaults['max'][0] = 8.51
         kw_defaults['min'][0] = 0
 
-    def sine_degree(x):
-        return np.sin(x * np.pi / 180)
+    def cosine_degree(x):
+        return np.cos(x * np.pi / 180)
 
     if inv_angle_transformation:
-        kw_defaults['mean'][1:3] = sine_degree(91), sine_degree(89)
-        kw_defaults['std'][1:3] = sine_degree(36.4), sine_degree(52.6)
+        kw_defaults['mean'][1:3] = cosine_degree(91), cosine_degree(89)
+        kw_defaults['std'][1:3] = cosine_degree(36.4), cosine_degree(52.6)
         kw_defaults['max'][1:3] = 1, 1
         kw_defaults['min'][1:3] = -1, -1
 
@@ -204,7 +203,6 @@ def inverse_transformation(params_to_transform, inv_logB=True, inv_angle_transfo
 
     if inv_angle_transformation:
         transformed_params[:, 1:3] = np.arcsin(transformed_params[:, 1:3]) * 180 / np.pi
-        transformed_params[:, 1:3] += 90
 
     return transformed_params
 
