@@ -1,5 +1,5 @@
 import matplotlib.pyplot as plt
-#import seaborn as sns
+import seaborn as sns
 from matplotlib.colors import LogNorm
 import os
 import torch
@@ -381,6 +381,40 @@ def plot_analysis_hist2d_up(refer, predicted_mu, predicted_sigma, names=None, in
     plt.show()
 
 
+def plot_hist_params(pars_arr, pars_names=None, plot_name='params_hist', bins=100, save_path=None):
+    """
+    Draw histograms for all parameters at once
+    """
+    if pars_names is None:
+        pars_names = ['Field Strength',
+                      'Field Inclination',
+                      'Field Azimuth',
+                      'Doppler Width',
+                      'Damping',
+                      'Line Strength',
+                      'S_0',
+                      'S_1',
+                      'Doppler Shift',
+                      'Filling Factor',
+                      'Stray light Doppler shift']
+
+    pars_arr = pars_arr.reshape(-1, 11)
+
+    fig, axs = plt.subplots(3, 4, figsize=(12, 15), constrained_layout=True)
+
+    for i, ax in enumerate(axs.flat[:-1]):
+        ax.set_yscale('log')
+        ax.set_title(pars_names[i], weight='bold')
+        ax.hist(pars_arr[:, i], bins=bins)
+
+    fig.set_facecolor('xkcd:white')
+    fig.delaxes(axs[2][3])
+    if save_path:
+        fig.savefig(save_path + ".png")
+    plt.suptitle(plot_name, fontsize=18)
+    plt.show()
+
+
 def plot_hist_params_comparison(pars_arr1, pars_arr2, pars_names, plot_name='params_hist', bins=100, save_path=None):
     pars_arr1 = pars_arr1.reshape(-1, 11)
     pars_arr2 = pars_arr2.reshape(-1, 11)
@@ -392,12 +426,12 @@ def plot_hist_params_comparison(pars_arr1, pars_arr2, pars_names, plot_name='par
         ax.set_title(pars_names[i], weight='bold')
         # ax.set_xlim(0, 1)
 
-        #sns.histplot(
-        #    pars_arr1[:, i], ax=ax, bins=bins, color='blue', label="predicted"
-        #)
-        #sns.histplot(
-        #    pars_arr2[:, i], ax=ax, bins=bins, color='red', alpha=0.6, label='refer'
-        #)
+        sns.histplot(
+            pars_arr1[:, i], ax=ax, bins=bins, color='blue', label="predicted"
+        )
+        sns.histplot(
+            pars_arr2[:, i], ax=ax, bins=bins, color='red', alpha=0.6, label='refer'
+        )
 
     fig.set_facecolor('xkcd:white')
 
@@ -409,6 +443,7 @@ def plot_hist_params_comparison(pars_arr1, pars_arr2, pars_names, plot_name='par
         fig.savefig(save_path + ".png")
     plt.suptitle(plot_name, fontsize=18)
     plt.show()
+
 
 def open_spectrum_data(sp_folder, date, idx):
     """
