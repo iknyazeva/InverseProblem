@@ -16,9 +16,8 @@ import pandas as pd
 
 def open_param_file(path, normalize=True, print_params=True, **kwargs):
     """
-
     Args:
-        print_params (object): 
+        print_params (object):
     """
     refer = fits.open(path)
     param_list = [1, 2, 3, 6, 8, 7, 9, 10, 5, 12, 13]
@@ -34,7 +33,7 @@ def open_param_file(path, normalize=True, print_params=True, **kwargs):
     return data, names
 
 
-def compute_metrics(refer, predicted, index=None, names=None, save_path=None, mask=None):
+def compute_metrics(refer, predicted, index=None, names=None, mask=None, save_path=None):
     """
     Compute metrics
     Args:
@@ -64,12 +63,10 @@ def compute_metrics(refer, predicted, index=None, names=None, save_path=None, ma
     predicted = predicted.reshape(-1, 11)
 
     if mask is not None:
-        mask = mask.reshape(-1, 11)
-
-        rows_mask = np.any(mask, axis=1)
-
-        refer = refer[~rows_mask, :]
-        predicted = predicted[~rows_mask, :]
+        mask_flat = mask.reshape(-1, 11)
+        masked_rows = np.any(mask_flat, axis=1)
+        refer = refer[~masked_rows, :]
+        predicted = predicted[~masked_rows, :]
 
     if index is None:
         r2list = []
@@ -207,49 +204,7 @@ def plot_params(data, names=None):
     plt.tight_layout()
 
 
-def plot_analysis_graphs(refer, predicted, names, title=None, index=0, save_path=None):
-    """
-        draw 2d graphs:
-        index = 0: (x_pred-x_true)/x_true vs x_true
-        index = 1: x_pred vs x_true.
-    """
-    if not title:
-        title = ['(x_pred-x_true)/x_true vs x_true', 'x_pred vs x_true'][index]
-
-    refer_flat = refer.reshape(-1, 11)
-    predicted_flat = predicted.reshape(-1, 11)
-
-    fig, axs = plt.subplots(3, 4, figsize=(19, 15), constrained_layout=True)
-    fig.suptitle(title, fontsize=16)
-
-    for i, ax in enumerate(axs.flat[:-1]):
-        if index == 0:
-            X, Y = refer_flat[:, i], predicted_flat[:, i] - refer_flat[:, i]
-        elif index == 1:
-            X, Y = refer_flat[:, i], predicted_flat[:, i]
-        else:
-            theta = np.linspace(0, 2 * np.pi, 100)
-            X = 16 * (np.sin(theta) ** 3)
-            Y = 13 * np.cos(theta) - 5 * np.cos(2 * theta) - 2 * np.cos(3 * theta) - np.cos(4 * theta)
-        ax.set_title(names[i], weight='bold')
-        ax.plot(X, Y, 'o', color='red', alpha=0.1, markersize=4, markeredgewidth=0.0)
-
-    if index == 0:
-        fig.supxlabel(r'$x_{true}$')
-        fig.supylabel(r'$(x_{pred} - x_{true})/ x_{true}$')
-    elif index == 1:
-        fig.supxlabel(r'$x_{true}$')
-        fig.supylabel(r'$x_{pred}$')
-
-    fig.set_facecolor('xkcd:white')
-    fig.delaxes(axs[2][3])
-
-    if save_path:
-        fig.savefig(save_path + ".png")
-    plt.show()
-
-
-def plot_analysis_hist2d(refer, predicted, names=None, index=0, title=None, bins=100, save_path=None):
+def plot_analysis_hist2d(refer, predicted, names=None, index=0, mask=None, title=None, bins=100, save_path=None):
     """
         draw hist2d:
         index = 0: (x_pred-x_true)/x_true vs x_true,
@@ -275,7 +230,13 @@ def plot_analysis_hist2d(refer, predicted, names=None, index=0, title=None, bins
     refer_flat = refer.reshape(-1, 11)
     predicted_flat = predicted.reshape(-1, 11)
 
-    fig, axs = plt.subplots(3, 4, figsize=(19, 15))
+    if mask is not None:
+        mask_flat = mask.reshape(-1, 11)
+        masked_rows = np.any(mask_flat, axis=1)
+        refer_flat = refer_flat[~masked_rows, :]
+        predicted_flat = predicted_flat[~masked_rows, :]
+
+    fig, axs = plt.subplots(3, 4, figsize=(19, 15), constrained_layout=True)
     fig.suptitle(title, fontsize=19)
 
     for i, ax in enumerate(axs.flat[:-1]):
@@ -289,28 +250,26 @@ def plot_analysis_hist2d(refer, predicted, names=None, index=0, title=None, bins
         plot_params = ax.hist2d(X, Y, bins=bins, norm=LogNorm())
 
         if index == 0:
-            fig.supxlabel(r'$x_{true}$')
-            fig.supylabel(r'$\left(x_{pred} - x_{true}\right) / x_{true}$')
+            fig.supxlabel(r'$x_{true}$', fontsize='xx-large')
+            fig.supylabel(r'$\left(x_{pred} - x_{true}\right) / x_{true}$', fontsize='xx-large')
         elif index == 1:
-            fig.supxlabel(r'$x_{true}$')
-            fig.supylabel(r'$x_{pred}$')
+            fig.supxlabel(r'$x_{true}$', fontsize='xx-large')
+            fig.supylabel(r'$x_{pred}$', fontsize='xx-large')
         else:
             raise ValueError
 
     fig.set_facecolor('xkcd:white')
     fig.delaxes(axs[2][3])
 
+    plt.colorbar(plot_params[3], ax=axs, shrink=1)
+
     if save_path:
-        fig.savefig(save_path + ".png")
+        plt.savefig(save_path + ".png")
 
-    plt.subplots_adjust(right=0.8)
-    cax = plt.axes([0.85, 0.15, 0.05, 0.7])
-
-    plt.colorbar(plot_params[3], cax=cax)
-    plt.show()
+    return fig, axs
 
 
-def plot_analysis_hist2d_up(refer, predicted_mu, predicted_sigma, names=None, index=0, title=None, bins=100,
+def plot_analysis_hist2d_up(refer, predicted_mu, predicted_sigma, names=None, index=0, mask=None, title=None, bins=100,
                             save_path=None):
     """
         draws 2d graphs:
@@ -340,6 +299,13 @@ def plot_analysis_hist2d_up(refer, predicted_mu, predicted_sigma, names=None, in
     predicted_mu_flat = predicted_mu.reshape(-1, 11)
     predicted_sigma_flat = predicted_sigma.reshape(-1, 11)
 
+    if mask is not None:
+        mask_flat = mask.reshape(-1, 11)
+        masked_rows = np.any(mask_flat, axis=1)
+        refer_flat = refer_flat[~masked_rows, :]
+        predicted_mu_flat = predicted_mu_flat[~masked_rows, :]
+        predicted_sigma_flat = predicted_sigma_flat[~masked_rows, :]
+
     fig, axs = plt.subplots(3, 4, figsize=(19, 15), constrained_layout=True)
     fig.suptitle(title, fontsize=16)
 
@@ -357,28 +323,26 @@ def plot_analysis_hist2d_up(refer, predicted_mu, predicted_sigma, names=None, in
         plot_params = ax.hist2d(X, Y, bins=bins, norm=LogNorm())
 
     if index == 0:
-        fig.supxlabel(r'$x_{true}$')
-        fig.supylabel(r'$\left(x_{true} - x_{pred}\right)/ \sigma_{pred}$')
+        fig.supxlabel(r'$x_{true}$', fontsize='xx-large')
+        fig.supylabel(r'$\left(x_{true} - x_{pred}\right)/ \sigma_{pred}$', fontsize='xx-large')
     elif index == 1:
-        fig.supxlabel(r'$x_{true} - x_{pred}$')
-        fig.supylabel(r'$\sigma_{pred}$')
+        fig.supxlabel(r'$x_{true} - x_{pred}$', fontsize='xx-large')
+        fig.supylabel(r'$\sigma_{pred}$', fontsize='xx-large')
     elif index == 2:
-        fig.supxlabel(r'$x_{true}$')
-        fig.supylabel(r'$\sigma_{pred}$')
+        fig.supxlabel(r'$x_{true}$', fontsize='xx-large')
+        fig.supylabel(r'$\sigma_{pred}$', fontsize='xx-large')
     else:
         raise ValueError
 
     fig.set_facecolor('xkcd:white')
     fig.delaxes(axs[2][3])
 
+    plt.colorbar(plot_params[3], ax=axs, shrink=1)
+
     if save_path:
-        fig.savefig(save_path + ".png")
+        plt.savefig(save_path + ".png")
 
-    plt.subplots_adjust(right=0.8)
-    cax = plt.axes([0.85, 0.15, 0.05, 0.7])
-
-    plt.colorbar(plot_params[3], cax=cax)
-    plt.show()
+    return fig, axs
 
 
 def plot_hist_params(pars_arr, pars_names=None, plot_name='params_hist', bins=100, save_path=None):
@@ -415,16 +379,35 @@ def plot_hist_params(pars_arr, pars_names=None, plot_name='params_hist', bins=10
     plt.show()
 
 
-def plot_hist_params_comparison(pars_arr1, pars_arr2, pars_names, plot_name='params_hist', bins=100, save_path=None):
+def plot_hist_params_comparison(pars_arr1, pars_arr2, pars_names=None, mask=None, plot_name=None, bins=100,
+                                save_path=None):
+    if pars_names is None:
+        pars_names = ['Field Strength',
+                      'Field Inclination',
+                      'Field Azimuth',
+                      'Doppler Width',
+                      'Damping',
+                      'Line Strength',
+                      'S_0',
+                      'S_1',
+                      'Doppler Shift',
+                      'Filling Factor',
+                      'Stray light Doppler shift']
+
     pars_arr1 = pars_arr1.reshape(-1, 11)
     pars_arr2 = pars_arr2.reshape(-1, 11)
+
+    if mask is not None:
+        mask_flat = mask.reshape(-1, 11)
+        masked_rows = np.any(mask_flat, axis=1)
+        pars_arr1 = pars_arr1[~masked_rows, :]
+        pars_arr2 = pars_arr2[~masked_rows, :]
 
     fig, axs = plt.subplots(3, 4, figsize=(19, 15), constrained_layout=True)
 
     for i, ax in enumerate(axs.flat[:-1]):
         ax.set_yscale('log')
         ax.set_title(pars_names[i], weight='bold')
-        # ax.set_xlim(0, 1)
 
         sns.histplot(
             pars_arr1[:, i], ax=ax, bins=bins, color='blue', label="predicted"
@@ -439,10 +422,13 @@ def plot_hist_params_comparison(pars_arr1, pars_arr2, pars_names, plot_name='par
     axs[2][3].legend(h, l, borderaxespad=0)
     axs[2][3].axis("off")
 
+    if plot_name:
+        plt.suptitle(plot_name, fontsize=18)
+
     if save_path:
-        fig.savefig(save_path + ".png")
-    plt.suptitle(plot_name, fontsize=18)
-    plt.show()
+        plt.savefig(save_path + ".png")
+
+    return fig, axs
 
 
 def open_spectrum_data(sp_folder, date, idx):
