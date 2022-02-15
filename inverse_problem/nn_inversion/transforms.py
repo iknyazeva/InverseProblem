@@ -200,7 +200,7 @@ def inverse_transformation(params_to_transform, inv_logB=True, inv_angle_transfo
         transformed_params[:, 0] = np.exp(transformed_params[:, 0])
 
     if inv_angle_transformation:
-        transformed_params[:, 1:3] = np.arcsin(transformed_params[:, 1:3]) * 180 / np.pi
+        transformed_params[:, 1:3] = np.arccos(transformed_params[:, 1:3]) * 180 / np.pi
 
     return transformed_params
 
