@@ -4,7 +4,7 @@ from matplotlib.colors import LogNorm
 import os
 import torch
 from inverse_problem.nn_inversion import normalize_spectrum
-
+from scipy.stats import norm
 from inverse_problem import HinodeME
 import glob
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
@@ -314,29 +314,35 @@ def plot_analysis_hist2d(refer, predicted, names=None, index=0, title=None, bins
     plt.colorbar(plot_params[3], cax=cax)
     plt.show()
 
-
-
-def plot_analysis_hist2d_unc(names, refer, predicted_mu, predicted_sigma, mask=False, index=0, save_path='', title='', bins=100):
-    '''
+def plot_analysis_hist2d_unc(refer, predicted_mu, predicted_sigma, names=None, index=0, mask=None, title=None, bins=100,
+                            save_path=None, plot_stats=False):
+    """
         draws 2d graphs:
         1. (x_true - x_pred)/sigma_pred vs x_true,
         2. (x_true - x_pred) vs sigma_pred,
         3. x_true vs sigma_pred,
-        4. x_pred vs x_true.
-        5. (x_pred-x_true) vs x_true
-        param index: number of a graph, from 0 to 2
-        return: saves the graph to the ../img/ directory
-    '''
+    """
+    if not title:
+        title = [r'$\left(x_{true} - x_{pred}\right) / \sigma_{pred}$ vs $x_{true}$',
+                 r'$\sigma_{pred}$ vs $x_{true} - x_{pred}$',
+                 r'$\sigma_{pred}$ vs $x_{true}$'][index]
 
-    refer = refer.reshape(-1, 11)
-    predicted_mu = predicted_mu.reshape(-1, 11)
-    predicted_sigma = predicted_sigma.reshape(-1, 11)
+    if names is None:
+        names = ['Field Strength',
+                 'Field Inclination',
+                 'Field Azimuth',
+                 'Doppler Width',
+                 'Damping',
+                 'Line Strength',
+                 'S_0',
+                 'S_1',
+                 'Doppler Shift',
+                 'Filling Factor',
+                 'Stray light Doppler shift']
 
-    if mask:
-        t_mask = np.any(refer.mask, axis=1)
-        refer = refer.data[~t_mask]
-        predicted_mu = predicted_mu[~t_mask]
-        predicted_sigma = predicted_sigma[~t_mask]
+    if mask is not None:
+        mask_flat = mask.reshape(-1, 11)
+        masked_rows = np.any(mask_flat, axis=1)
 
     titles_for_saving = ['x_true vs (x_true - x_pred)\sigma_pred',
                          'x_true - x_pred vs sigma_pred',
@@ -344,9 +350,8 @@ def plot_analysis_hist2d_unc(names, refer, predicted_mu, predicted_sigma, mask=F
                          'x_true vs x_pred',
                          '(x_pred - x_true)/x_true vs x_true']
 
+    fig, axs = plt.subplots(3, 4, figsize=(15, 12))
 
-    fig, axs = pylab.subplots(3, 4, figsize=(15, 12))
-    # fig, axs = pylab.subplots(1, 4, figsize=(16, 5))
     for i, ax in enumerate(axs.flat[:-1]):
         if index == 0:
             X, Y = refer[:, i], (refer[:, i] - predicted_mu[:, i]) / predicted_sigma[:, i]
@@ -358,11 +363,21 @@ def plot_analysis_hist2d_unc(names, refer, predicted_mu, predicted_sigma, mask=F
             X, Y = refer[:, i], predicted_mu[:, i]
         else:
             X, Y = refer[:, i], (predicted_mu[:, i] - refer[:, i])/refer[:, i]
+        if i == 7 or i == 8:
+            bins = 500
         ax.set_title(names[i], weight='bold')
         plot_params = ax.hist2d(X, Y, bins=bins, norm=LogNorm())
+        if plot_stats:
+            grid, a, b = calculate_ab_fit(X, Y, N=500)
+            ax.plot(grid, a, color='red', label='a')
+            ax.plot(grid, b, color='orange', label='b')
+            ax.legend(loc='upper right')
         ymin, ymax = np.percentile(Y, 0.01), np.percentile(Y, 99.99)
         xmin, xmax = np.percentile(X, 0.01), np.percentile(X, 99.99)
         ax.axis(ymin=ymin, ymax=ymax, xmin=xmin, xmax=xmax)
+        if i == 7 or i == 4:
+            ax.set_xticks(np.round(np.linspace(xmin, 0.9*xmax, 3), 2))
+
     font = 16
     y_position, x_position = 0.01, 0.5
     if index == 0:
@@ -381,20 +396,35 @@ def plot_analysis_hist2d_unc(names, refer, predicted_mu, predicted_sigma, mask=F
         fig.text(x_position, y_position, r'$x_{true}$', ha='center', fontsize=font)
         fig.text(0.01, 0.5, r'$(x_{pred} - x_{true})/x_{true}$', va='center', rotation='vertical', fontsize=font)
 
-
     fig.set_facecolor('xkcd:white')
-    # fig.delaxes(axs[3])
-    fig.delaxes(axs[2][3])
-    # fig.suptitle(title)
+    axs[2][3].axis("off")
     pylab.tight_layout(pad=4)
 
     cax = plt.axes([0.8, 0.08, 0.02, 0.2])
-    plt.colorbar(plot_params[3], cax=cax)
+    plt.colorbar(plot_params[3], ax=axs, cax=cax, shrink=1)
 
-    fig.savefig(save_path + title + "_" + titles_for_saving[index] + ".pdf")
-    pylab.show()
+    fig.savefig(save_path + title + "_" + titles_for_saving[index] + ".png")
+    plt.show()
 
 
+def calculate_ab_fit(X, Y, N=100):
+    a, b, grid = [], [], []
+    shape = X.shape[0]
+    grid_step = np.abs((np.max(X) - np.min(X))) // N + 1
+    slice_step = shape // N + 1
+    for i in range(N - 1):
+        slice = Y[i * slice_step:(i + 1) * slice_step]
+        if slice.shape[0] != 0:
+            mu, std = norm.fit(slice)
+        else:
+            mu, std = None, None
+        a.append(mu)
+        b.append(std)
+        grid.append(np.min(X) + i * grid_step)
+
+    if len(grid) != len(a):
+        raise ValueError(f'grid ({len(grid)}) and a ({len(a)}) must be of the same size')
+    return np.array(grid), np.array(a), np.array(b)
 
 
 def plot_hist_params_comparison(pars_arr1, pars_arr2, pars_names, plot_name='', bins=100, save_path=None):
