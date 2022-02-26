@@ -58,26 +58,17 @@ class PIMLPConvDistributionNet(nn.Module):
 
         activation = getattr(F, activation)
 
-        conv_blocks = []
-        for i in range(n_blocks):
-            conv_blocks.append(ConvBlock(in_dim[i], out_dim[i], kernel_size[i], padding[i], activation,
-                                         dropout, batch_norm, pool=pool[i]))
+        conv_blocks = [ConvBlock(in_dim[i], out_dim[i], kernel_size[i], padding[i],
+                                 activation, dropout, batch_norm, pool=pool[i])
+                       for i in range(n_blocks)]
+
+        top_mlp_layers = [nn.Sequential(
+                          MLPBlock(bottom_output + 1, activation, dropout, batch_norm, hidden_dims),
+                          MLPReadout(hidden_dims[-1], 1, activation, dropout, batch_norm, number_readout_layers))
+                          for _ in range(2 * top_output)]
 
         self.conv_part = nn.ModuleList(conv_blocks)
-
         self.mlp = MLPBlock(256 * 14, activation, dropout, batch_norm, (*hidden_dims, bottom_output))
-
-        top_mlp_layers = []
-        for i in range(top_output):
-            top_mlp_layers.append(nn.Sequential(
-                MLPBlock(bottom_output + 1, activation, dropout, batch_norm, hidden_dims),
-                MLPReadout(hidden_dims[-1], 1, activation, dropout, batch_norm, number_readout_layers))
-            )
-            top_mlp_layers.append(nn.Sequential(
-                MLPBlock(bottom_output + 1, activation, dropout, batch_norm, hidden_dims),
-                MLPReadout(hidden_dims[-1], 1, activation, dropout, batch_norm, number_readout_layers))
-            )
-
         self.top_mlp_part = nn.ModuleList(top_mlp_layers)
 
     def forward(self, sample):
