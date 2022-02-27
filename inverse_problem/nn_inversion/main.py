@@ -1,21 +1,23 @@
-from inverse_problem.nn_inversion.dataset import SpectrumDataset, PregenSpectrumDataset
-import torch
-from inverse_problem.nn_inversion.posthoc import compute_metrics, open_param_file
-from sklearn.model_selection import train_test_split
-from torch.utils.tensorboard import SummaryWriter
-from torch.utils.data import Subset
-from tqdm import tqdm
-from torch import nn
 import os
 from pathlib import Path
+
+import numpy as np
+import torch
+from astropy.io import fits
+from sklearn.model_selection import train_test_split
+from torch import nn
 from torch.utils.data import DataLoader
-from inverse_problem.nn_inversion.models import HyperParams, FullModel
+from torch.utils.data import Subset
+from torch.utils.tensorboard import SummaryWriter
+from tqdm import tqdm
+
+from inverse_problem.milne_edington.me import HinodeME, me_model
 from inverse_problem.nn_inversion import models
 from inverse_problem.nn_inversion import transforms
-from inverse_problem.milne_edington.me import HinodeME, me_model
+from inverse_problem.nn_inversion.dataset import SpectrumDataset, PregenSpectrumDataset
+from inverse_problem.nn_inversion.models import HyperParams, FullModel
+from inverse_problem.nn_inversion.posthoc import open_param_file
 from inverse_problem.nn_inversion.transforms import normalize_output
-import numpy as np
-from astropy.io import fits
 
 
 class Model:
@@ -100,7 +102,6 @@ class Model:
                     if self.hps.trainset == i:
                         break
                 x = [inputs['X'][0].to(self.device), inputs['X'][1].to(self.device)]
-                # print(x.shape)
                 y = inputs['Y'][:, self.hps.predict_ind].to(self.device)
                 if pretrained_bottom:
                     with torch.no_grad():
@@ -314,8 +315,6 @@ class Model:
         if n_batches*batch_size < length:
             predict[n_batches*batch_size:, :] = self.predict_from_batch(params[batch_size*n_batches:, :])
         return predict
-
-
 
     def predict_from_batch(self, param_vector, noise=True):
         data = self.generate_batch_spectrum(param_vector, noise=noise)
