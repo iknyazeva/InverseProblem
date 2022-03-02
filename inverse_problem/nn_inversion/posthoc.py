@@ -408,19 +408,24 @@ def plot_analysis_hist2d_unc(refer, predicted_mu, predicted_sigma, names=None, i
 
 
 def calculate_ab_fit(X, Y, N=100):
+    data = np.array([X, Y]).T
+    sorted_data = data[np.argsort(data[:, 0])].T
+    X, Y = sorted_data[0], sorted_data[1]
     a, b, grid = [], [], []
     shape = X.shape[0]
-    grid_step = np.abs((np.max(X) - np.min(X))) // N + 1
-    slice_step = shape // N + 1
-    for i in range(N - 1):
-        slice = Y[i * slice_step:(i + 1) * slice_step]
+    step = shape // N
+    for i in range(N):
+        slice = Y[i * step:(i + 1) * step]
         if slice.shape[0] != 0:
             mu, std = norm.fit(slice)
         else:
             mu, std = None, None
         a.append(mu)
         b.append(std)
-        grid.append(np.min(X) + i * grid_step)
+        if i != N-1:
+            grid.append(np.mean(X[i * step:(i + 1) * step]))
+        else:
+            grid.append(np.max(X[i * step:(i + 1) * step]))
 
     if len(grid) != len(a):
         raise ValueError(f'grid ({len(grid)}) and a ({len(a)}) must be of the same size')
