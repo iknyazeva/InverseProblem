@@ -84,7 +84,6 @@ class SpectrumDataset(Dataset):
 
 
 class PregenSpectrumDataset(Dataset):
-
     """
     Generate spectrum by the full array of dataset at first, and iterate through
     """
@@ -108,7 +107,8 @@ class PregenSpectrumDataset(Dataset):
         elif self.source == 'refer':
             param_list = [1, 2, 3, 6, 8, 7, 9, 10, 5, 12, 13]
             refer = fits.open(self.param_path)
-            param_source = np.array([refer[i].data for i in param_list], dtype='float').swapaxes(0, 2).swapaxes(0, 1).reshape(-1, 11)
+            param_source = np.array([refer[i].data for i in param_list], dtype='float'
+                                    ).swapaxes(0, 2).swapaxes(0, -1, 11)
         else:
             raise AssertionError('source parameter should be data or from \'database\' or \'refer\'')
         self.samples = self._init_dataset(param_source)

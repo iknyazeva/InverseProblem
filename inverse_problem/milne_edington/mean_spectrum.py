@@ -1,10 +1,10 @@
-from inverse_problem.milne_edington import compute_mean_spectrum, plot_spectrum_range
-import numpy as np
-from pathlib import Path
 import os
 import pickle
-from astropy.io import fits
+from pathlib import Path
+
 import matplotlib.pyplot as plt
+
+from inverse_problem.milne_edington import compute_mean_spectrum
 
 filename = '/Users/irinaknyazeva/Projects/Solar/InverseProblem/data/parameters_base.fits'
 batch_size = 160000
