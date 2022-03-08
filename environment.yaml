@@ -1,0 +1,28 @@
+name: solar_inv
+
+channels:
+  - anaconda
+  - conda-forge
+  - nvidia
+  - pytorch
+
+dependencies:
+  - python=3.7
+  - nvidia::cudatoolkit=10.2
+  - pytorch::pytorch
+  - pytorch::torchvision
+  - pytorch::torchaudio
+  - tensorboard
+  - scikit-learn
+  - matplotlib
+  - seaborn
+  - numpy
+  - pandas
+  - astropy
+  - requests
+  - scipy
+  - tqdm
+  - attr
+  - attrs
+  - pytest
+  - gdown
