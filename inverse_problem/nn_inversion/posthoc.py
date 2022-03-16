@@ -314,8 +314,9 @@ def plot_analysis_hist2d(refer, predicted, names=None, index=0, title=None, bins
     plt.colorbar(plot_params[3], cax=cax)
     plt.show()
 
+
 def plot_analysis_hist2d_unc(refer, predicted_mu, predicted_sigma, names=None, index=0, mask=None, title=None, bins=100,
-                            save_path=None, plot_stats=False):
+                            save_path=None):
     """
         draws 2d graphs:
         1. (x_true - x_pred)/sigma_pred vs x_true,
@@ -351,6 +352,7 @@ def plot_analysis_hist2d_unc(refer, predicted_mu, predicted_sigma, names=None, i
                          '(x_pred - x_true)/x_true vs x_true']
 
     fig, axs = plt.subplots(3, 4, figsize=(15, 12))
+    fig.suptitle(title, fontsize=16)
 
     for i, ax in enumerate(axs.flat[:-1]):
         if index == 0:
@@ -367,11 +369,11 @@ def plot_analysis_hist2d_unc(refer, predicted_mu, predicted_sigma, names=None, i
             bins = 500
         ax.set_title(names[i], weight='bold')
         plot_params = ax.hist2d(X, Y, bins=bins, norm=LogNorm())
-        if plot_stats:
-            grid, a, b = calculate_ab_fit(X, Y, N=500)
-            ax.plot(grid, a, color='red', label='a')
-            ax.plot(grid, b, color='orange', label='b')
-            ax.legend(loc='upper right')
+        # if plot_stats:
+        #     grid, a, b = calculate_ab_fit(X, Y, N=500)
+        #     ax.plot(grid, a, color='red', label='a')
+        #     ax.plot(grid, b, color='orange', label='b')
+        #     ax.legend(loc='upper right')
         ymin, ymax = np.percentile(Y, 0.01), np.percentile(Y, 99.99)
         xmin, xmax = np.percentile(X, 0.01), np.percentile(X, 99.99)
         ax.axis(ymin=ymin, ymax=ymax, xmin=xmin, xmax=xmax)
@@ -404,6 +406,44 @@ def plot_analysis_hist2d_unc(refer, predicted_mu, predicted_sigma, names=None, i
     plt.colorbar(plot_params[3], ax=axs, cax=cax, shrink=1)
 
     fig.savefig(save_path + title + "_" + titles_for_saving[index] + ".png")
+    plt.show()
+
+
+def plot_fitting_curves_unc(refer, predicted_mu, predicted_sigma, names=None, index=0, mask=None, title=None, save_path=None):
+    """
+        draws fitting curves a, b: each point of a parameter is fitted by the N(a, b)
+    """
+    if names is None:
+        names = ['Field Strength',
+                 'Field Inclination',
+                 'Field Azimuth',
+                 'Doppler Width',
+                 'Damping',
+                 'Line Strength',
+                 'S_0',
+                 'S_1',
+                 'Doppler Shift',
+                 'Filling Factor',
+                 'Stray light Doppler shift']
+
+    fig, axs = plt.subplots(3, 4, figsize=(15, 12))
+    fig.suptitle(title, fontsize=16)
+    for i, ax in enumerate(axs.flat[:-1]):
+        X, Y = refer[:, i], (refer[:, i] - predicted_mu[:, i]) / predicted_sigma[:, i]
+        ax.set_title(names[i], weight='bold')
+        grid, a, b = calculate_ab_fit(X, Y, N=500)
+        ax.plot(grid, a, color='red', label='mean')
+        ax.plot(grid, a + b, color='orange', label=r'$\pm$ std')
+        ax.plot(grid, a - b, color='orange')
+        ax.legend(loc='upper right')
+
+    font = 16
+    fig.text(0.5, 0.01, r'$x_{true}$', ha='center', fontsize=font)
+    fig.text(0.01, 0.5, r'$(x_{true} - x_{pred})/ \sigma_{pred}$', va='center', rotation='vertical', fontsize=font)
+    fig.set_facecolor('xkcd:white')
+    axs[2][3].axis("off")
+    pylab.tight_layout(pad=4)
+    fig.savefig(save_path + title + "_" + "stats" + ".png")
     plt.show()
 
 
