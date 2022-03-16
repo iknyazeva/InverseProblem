@@ -168,6 +168,51 @@ def normalize_output(y, mode='range', logB=True, angle_transformation=False, **k
     return norm_y.T
 
 
+
+def inverse_transform_one_param(y, param_number, inv_logB=True, inv_angle_transformation=False, sigma=False):
+    kw_defaults = {
+        'max': [5000, 180, 180, 90, 1.5, 100, 38603, 60464, 10, 1, 10],
+        'min': [0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, -10, 0.01, -10]
+    }
+    if inv_logB:
+        kw_defaults['max'][0] = 8.51
+        kw_defaults['min'][0] = 0
+    if inv_angle_transformation:
+        kw_defaults['max'][1:3] = 1, 1
+        kw_defaults['min'][1:3] = -1, -1
+
+    params_range = np.array(kw_defaults['max']).reshape(-1, 1) - np.array(kw_defaults['min']).reshape(-1, 1)
+    transformed_params = y * params_range[param_number] + kw_defaults['min'][param_number]
+    if inv_logB and param_number == 0:
+        transformed_params = np.exp(transformed_params)
+
+    if inv_angle_transformation and 0 <= param_number <= 3:
+        transformed_params = np.arcsin(transformed_params - 90) * 180 / np.pi
+        transformed_params += 90
+    return transformed_params
+
+
+def transform_dist(mu, sigma, param_number, inv_logB=True, inv_angle_transformation=False):
+    X = np.random.normal(mu, sigma, size=100)
+    Y = inverse_transform_one_param(X, param_number, inv_logB, inv_angle_transformation)
+    new_mu = Y.mean()
+    new_sigma = Y.std()
+    return new_mu, new_sigma
+
+
+def inverse_transformation_unc(params_mu, params_sigma, inv_logB=True, inv_angle_transformation=False):
+    shape = params_mu.shape
+    params_mu = params_mu.reshape(-1, 11)
+    params_sigma = params_sigma.reshape(-1, 11)
+    for i in range(11):
+        for j in range(len(params_mu[:, i])):
+            params_mu[j, i], params_sigma[j, i] = transform_dist(params_mu[j, i], params_sigma[j, i], i, inv_logB, inv_angle_transformation)
+    params_mu = params_mu.reshape(shape)
+    params_sigma = params_sigma.reshape(shape)
+    return params_mu, params_sigma
+
+
+
 def inverse_transformation(params_to_transform, inv_logB=True, inv_angle_transformation=False, sigma=False, mean=None):
     kw_defaults = {
         'mean': [530, 91, 89, 33, 0.31, 12, 27083, 19567, 0.04, 0.5, 0.36],
@@ -214,9 +259,6 @@ def inverse_transformation(params_to_transform, inv_logB=True, inv_angle_transfo
             transformed_params[:, 0] = np.exp(transformed_params[:, 0])
 
     if inv_angle_transformation:
-        # if sigma:
-        #     transformed_params[:, 1:3] = np.abs(cos_degree(mean[:, 1:3]) * np.pi / 180) * transformed_params[:, 1:3]
-        # else:
         transformed_params[:, 1:3] = np.arcsin(transformed_params[:, 1:3] - 90) * 180 / np.pi
         transformed_params[:, 1:3] += 90
     return transformed_params
