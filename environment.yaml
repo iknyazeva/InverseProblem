@@ -26,3 +26,4 @@ dependencies:
   - attrs
   - pytest
   - gdown
+  - ipykernel
