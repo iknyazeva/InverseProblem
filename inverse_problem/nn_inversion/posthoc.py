@@ -431,7 +431,7 @@ def plot_fitting_curves_unc(refer, predicted_mu, predicted_sigma, names=None, in
     for i, ax in enumerate(axs.flat[:-1]):
         X, Y = refer[:, i], (refer[:, i] - predicted_mu[:, i]) / predicted_sigma[:, i]
         ax.set_title(names[i], weight='bold')
-        grid, a, b = calculate_ab_fit(X, Y, N=500)
+        grid, a, b = calculate_ab_fit(X, Y, N=100)
         ax.plot(grid, a, color='red', label='mean')
         ax.plot(grid, a + b, color='orange', label=r'$\pm$ std')
         ax.plot(grid, a - b, color='orange')
@@ -447,25 +447,30 @@ def plot_fitting_curves_unc(refer, predicted_mu, predicted_sigma, names=None, in
     plt.show()
 
 
-def calculate_ab_fit(X, Y, N=100):
+def calculate_ab_fit(X, Y, N=500):
     data = np.array([X, Y]).T
     sorted_data = data[np.argsort(data[:, 0])].T
     X, Y = sorted_data[0], sorted_data[1]
     a, b, grid = [], [], []
     shape = X.shape[0]
     step = shape // N
+
+    X_limit = np.abs(X[-1] - X[0]) / N
+
     for i in range(N):
         slice = Y[i * step:(i + 1) * step]
         if slice.shape[0] != 0:
             mu, std = norm.fit(slice)
         else:
             mu, std = None, None
-        a.append(mu)
-        b.append(std)
-        if i != N-1:
-            grid.append(np.mean(X[i * step:(i + 1) * step]))
-        else:
-            grid.append(np.max(X[i * step:(i + 1) * step]))
+
+        if np.abs(X[i * step:(i + 1) * step][-1] - X[i * step:(i + 1) * step][0]) <= X_limit:
+            a.append(mu)
+            b.append(std)
+            if i != N - 1:
+                grid.append(np.mean(X[i * step:(i + 1) * step]))
+            else:
+                grid.append(np.max(X[i * step:(i + 1) * step]))
 
     if len(grid) != len(a):
         raise ValueError(f'grid ({len(grid)}) and a ({len(a)}) must be of the same size')
