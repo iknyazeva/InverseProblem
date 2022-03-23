@@ -12,6 +12,7 @@ from inverse_problem.nn_inversion.transforms import normalize_output
 from astropy.io import fits
 import numpy as np
 import pandas as pd
+from scipy import stats
 
 
 def open_param_file(path, normalize=True, print_params=True, **kwargs):
@@ -31,6 +32,84 @@ def open_param_file(path, normalize=True, print_params=True, **kwargs):
         data = normalize_output(data.reshape(-1, 11), **kwargs).reshape(shape)
 
     return data, names
+
+
+def nlpd_metric(refer, mean_pred, sigma_pred):
+    """
+    The Negative Log Predictive Density (NLPD) metric calculation.
+    Source: http://mlg.eng.cam.ac.uk/pub/pdf/QuiRasSinetal06.pdf
+    
+    Parameters:
+    -----------
+    refer : ndarray-like
+        True observations with shape [n_observations, n_parameters].
+    mean_pred : ndarray-like
+        Predicted paramter mean values with shape [n_observations, n_parameters].
+    sigma_pred : array-like
+        Predicted paramter standard deviations with shape [n_observations, n_parameters].
+        
+    Returns:
+    --------
+    metric : float
+        NLPD metrc value.
+    """
+    
+    metric = (refer - mean_pred)**2 / (2 * sigma_pred**2) + np.log(sigma_pred) + 0.5 * np.log(2 * np.pi)
+    
+    return metric.mean(axis=0)
+
+
+def nrmse_p_metric(refer, mean_pred, sigma_pred):
+    """
+    The normalized Root Mean Squared Error (nRMSEp) metric based on predicted error. 
+    Source: http://mlg.eng.cam.ac.uk/pub/pdf/QuiRasSinetal06.pdf
+    
+    Parameters:
+    -----------
+    refer : ndarray-like
+        True observations with shape [n_observations, n_parameters].
+    mean_pred : ndarray-like
+        Predicted paramter mean values with shape [n_observations, n_parameters].
+    sigma_pred : array-like
+        Predicted paramter standard deviations with shape [n_observations, n_parameters].
+        
+    Returns:
+    --------
+    metric : float
+        nRMSEp metrc value.
+    """
+    
+    metric = (refer - mean_pred)**2 / sigma_pred**2
+    
+    return np.sqrt(metric.mean(axis=0))
+
+
+def picp_metric(refer, mean_pred, sigma_pred, alpha=0.90):
+    """
+    The Prediction Interval Coverage Probability (PICP) metric. 
+    Source: https://www.sciencedirect.com/science/article/pii/S0893608006000153?via%3Dihub
+    
+    Parameters:
+    -----------
+    refer : ndarray-like
+        True observations with shape [n_observations, n_parameters].
+    mean_pred : ndarray-like
+        Predicted paramter mean values with shape [n_observations, n_parameters].
+    sigma_pred : array-like
+        Predicted paramter standard deviations with shape [n_observations, n_parameters].
+    alpha : float [0, 1]
+        Fraction of the distribution inside confident intervals.
+        
+    Returns:
+    --------
+    metric : float
+        PICP metrc value.
+    """
+    
+    p_left, p_right = stats.norm.interval(alpha=alpha, loc=mean_pred, scale=sigma_pred)
+    metric = (refer > p_left) * (refer <= p_right)
+    
+    return metric.mean(axis=0)
 
 
 def compute_metrics(refer, predicted, index=None, names=None, mask=None, save_path=None):
