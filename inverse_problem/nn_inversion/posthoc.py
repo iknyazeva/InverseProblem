@@ -12,6 +12,7 @@ from inverse_problem.nn_inversion.transforms import normalize_output
 from astropy.io import fits
 import numpy as np
 import pandas as pd
+from scipy import stats
 
 
 def open_param_file(path, normalize=True, print_params=True, **kwargs):
@@ -33,13 +34,92 @@ def open_param_file(path, normalize=True, print_params=True, **kwargs):
     return data, names
 
 
-def compute_metrics(refer, predicted, index=None, names=None, mask=None, save_path=None):
+def nlpd_metric(refer, mean_pred, sigma_pred):
+    """
+    The Negative Log Predictive Density (NLPD) metric calculation.
+    Source: http://mlg.eng.cam.ac.uk/pub/pdf/QuiRasSinetal06.pdf
+    
+    Parameters:
+    -----------
+    refer : ndarray-like
+        True observations with shape [n_observations, n_parameters].
+    mean_pred : ndarray-like
+        Predicted paramter mean values with shape [n_observations, n_parameters].
+    sigma_pred : array-like
+        Predicted paramter standard deviations with shape [n_observations, n_parameters].
+        
+    Returns:
+    --------
+    metric : float
+        NLPD metrc value.
+    """
+    
+    metric = (refer - mean_pred)**2 / (2 * sigma_pred**2) + np.log(sigma_pred) + 0.5 * np.log(2 * np.pi)
+    
+    return metric.mean(axis=0)
+
+
+def nrmse_p_metric(refer, mean_pred, sigma_pred):
+    """
+    The normalized Root Mean Squared Error (nRMSEp) metric based on predicted error. 
+    Source: http://mlg.eng.cam.ac.uk/pub/pdf/QuiRasSinetal06.pdf
+    
+    Parameters:
+    -----------
+    refer : ndarray-like
+        True observations with shape [n_observations, n_parameters].
+    mean_pred : ndarray-like
+        Predicted paramter mean values with shape [n_observations, n_parameters].
+    sigma_pred : array-like
+        Predicted paramter standard deviations with shape [n_observations, n_parameters].
+        
+    Returns:
+    --------
+    metric : float
+        nRMSEp metrc value.
+    """
+    
+    metric = (refer - mean_pred)**2 / sigma_pred**2
+    
+    return np.sqrt(metric.mean(axis=0))
+
+
+def picp_metric(refer, mean_pred, sigma_pred, alpha=0.90):
+    """
+    The Prediction Interval Coverage Probability (PICP) metric. 
+    Source: https://www.sciencedirect.com/science/article/pii/S0893608006000153?via%3Dihub
+    
+    Parameters:
+    -----------
+    refer : ndarray-like
+        True observations with shape [n_observations, n_parameters].
+    mean_pred : ndarray-like
+        Predicted paramter mean values with shape [n_observations, n_parameters].
+    sigma_pred : array-like
+        Predicted paramter standard deviations with shape [n_observations, n_parameters].
+    alpha : float [0, 1]
+        Fraction of the distribution inside confident intervals.
+        
+    Returns:
+    --------
+    metric : float
+        PICP metrc value.
+    """
+    
+    p_left, p_right = stats.norm.interval(alpha=alpha, loc=mean_pred, scale=sigma_pred)
+    metric = (refer > p_left) * (refer <= p_right)
+    
+    return metric.mean(axis=0)
+
+
+def compute_metrics(refer, predicted, sigmas=None, index=None, names=None, mask=None, save_path=None):
     """
     Compute metrics
     Args:
         refer (np.ndarray): 2d with N*num_parameters array, or (height*width*num_parameters)
         index (int): index for output, if None for all values will be computed
         predicted  (np.ndarray): 2d with N*num_parameters array, or (height*width*num_parameters)
+        sigmas  (np.ndarray): 2d with N*num_parameters array, or (height*width*num_parameters)
         names (list of str): parameter names
         save_path (str): save path to results
         mask (np.ndarray): 2d with N*num_parameters array, or (height*width*num_parameters)
@@ -61,22 +141,40 @@ def compute_metrics(refer, predicted, index=None, names=None, mask=None, save_pa
 
     refer = refer.reshape(-1, 11)
     predicted = predicted.reshape(-1, 11)
+    if sigmas is not None:
+        sigmas = sigmas.reshape(-1, 11)
 
     if mask is not None:
         mask_flat = mask.reshape(-1, 11)
         masked_rows = np.any(mask_flat, axis=1)
         refer = refer[~masked_rows, :]
         predicted = predicted[~masked_rows, :]
+        if sigmas is not None:
+            sigmas = sigmas[~masked_rows, :]
 
     if index is None:
         r2list = []
         mselist = []
         maelist = []
+        if sigmas is not None:
+            nlpdlist = []
+            nrmseplist = []
+            picp68list = []
+            picp95list = []
         for i in range(len(names)):
             r2list.append(np.corrcoef(refer[:, i], predicted[:, i])[0][1] ** 2)
             mselist.append(mean_squared_error(refer[:, i], predicted[:, i]))
             maelist.append(mean_absolute_error(refer[:, i], predicted[:, i]))
-        df = pd.DataFrame([r2list, mselist, maelist], columns=names, index=['r2', 'mse', 'mae']).T.round(4)
+            if sigmas is not None:
+                nlpdlist.append(nlpd_metric(refer[:, i], predicted[:, i], sigmas[:, i]))
+                nrmseplist.append(nrmse_p_metric(refer[:, i], predicted[:, i], sigmas[:, i]))
+                picp68list.append(picp_metric(refer[:, i], predicted[:, i], sigmas[:, i], alpha=0.68268))
+                picp95list.append(picp_metric(refer[:, i], predicted[:, i], sigmas[:, i], alpha=0.95450))
+        if sigmas is None:
+            df = pd.DataFrame([r2list, mselist, maelist], columns=names, index=['r2', 'mse', 'mae']).T.round(4)
+        else:
+            df = pd.DataFrame([r2list, mselist, maelist, nlpdlist, nrmseplist, picp68list, picp95list], columns=names, 
+                              index=['r2', 'mse', 'mae', 'nlpd', 'nrmse', 'picp68', 'picp95']).T.round(4)
         if save_path:
             df.to_csv(save_path)
         return df
@@ -84,7 +182,13 @@ def compute_metrics(refer, predicted, index=None, names=None, mask=None, save_pa
         r2 = np.corrcoef(refer[:, index], predicted[:, index])[0][1] ** 2
         mae = mean_absolute_error(refer[:, index], predicted[:, index])
         mse = mean_squared_error(refer[:, index], predicted[:, index])
-    return r2, mae, mse
+        if sigmas is not None:
+            nlpd = nlpd_metric(refer[:, index], predicted[:, index], sigmas[:, index])
+            nrmse = nrmse_p_metric(refer[:, index], predicted[:, index], sigmas[:, index])
+            picp68 = picp_metric(refer[:, index], predicted[:, index], sigmas[:, index], alpha=0.68268)
+            picp95 = picp_metric(refer[:, index], predicted[:, index], sigmas[:, index], alpha=0.95450)
+            return r2, mae, mse, nlpd, nrmse, picp68, picp95
+        return r2, mae, mse
 
 
 def plot_spectrum(sp_folder, date, path_to_refer, idx_0, idx_1):
