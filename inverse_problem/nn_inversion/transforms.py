@@ -22,7 +22,7 @@ class Normalize:
         self.norm_output = norm_output
 
         if norm_output:
-            kw_defaults = {'mode': 'range', 'logB': True, 'angle_transformation': False}
+            kw_defaults = {'mode': 'range', 'logB': True, 'angle_transformation': False, 'PowerTransformer': None}
             for kw in kw_defaults.keys():
                 kwargs.setdefault(kw, kw_defaults[kw])
         self.kwargs = kwargs
@@ -33,7 +33,8 @@ class Normalize:
             params = normalize_output(params,
                                       mode=self.kwargs['mode'],
                                       logB=self.kwargs['logB'],
-                                      angle_transformation=self.kwargs['angle_transformation'])
+                                      angle_transformation=self.kwargs['angle_transformation'],
+                                      PowerTransformer=self.kwargs['PowerTransformer'])
         return {'X': sample['X'],
                 'Y': params}
 
@@ -80,8 +81,8 @@ class Rescale(Normalize):
         """
 
         Args:
-            factors (list of float): factors to multitply each spectrum component for increasing input of QUV relative to I
-            cont_scale (float): scaler factor for continum intensity, default 40000
+            factors (list of float): factors to multiply each spectrum component for increasing input of QUV relative to I
+            cont_scale (float): scaler factor for continuum intensity, default 40000
             norm_output (bool):
             angle_transformation:
             **kwargs:
@@ -107,7 +108,7 @@ class Rescale(Normalize):
         return sample
 
 
-def normalize_output(y, mode='range', logB=True, angle_transformation=False, **kwargs):
+def normalize_output(y, mode='range', logB=True, angle_transformation=False, PowerTransformer=None, **kwargs):
     """
     Function for output
     Args:
@@ -115,6 +116,7 @@ def normalize_output(y, mode='range', logB=True, angle_transformation=False, **k
         mode (str): type of rescaling, range (rescale to min max) or norm (rescale to mean and standard deviation)
         logB (bool): apply logarithmic transform to B
         angle_transformation (bool): angle transformation for inclination and azimuth (parameters with index 1 and 2)
+        PowerTransformer ():
         **kwargs:
 
     Returns:
@@ -147,6 +149,9 @@ def normalize_output(y, mode='range', logB=True, angle_transformation=False, **k
         kw_defaults['std'][1:3] = cosine_degree(36.4), cosine_degree(52.6)
         kw_defaults['max'][1:3] = 1, 1
         kw_defaults['min'][1:3] = -1, -1
+
+    if PowerTransformer:
+        return PowerTransformer.transform(y)
 
     for key in kwargs:
         if key not in allowedmodes[mode]:
@@ -292,7 +297,8 @@ class ToConv1d(object):
 
 
 def conv1d_transform_rescale(**kwargs) -> Callable:
-    allowed_kwargs = {'factors', 'cont_scale', 'norm_output', 'logB', 'angle_transformation', 'mode'}
+    allowed_kwargs = {'factors', 'cont_scale', 'norm_output', 'logB', 'angle_transformation', 'mode',
+                      'PowerTransformer'}
     for key in kwargs:
         if key not in allowed_kwargs:
             raise KeyError(f'{key} not in allowed keywords')

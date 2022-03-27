@@ -30,7 +30,7 @@ def make_loader(data_arr=None, filename: Path = None, pregen=False, ff=True, noi
         raise AssertionError('you need provide data as array or path to data')
 
     if transform_name is not None:
-        kw_defaults = {'mode': 'range', 'logB': True, 'angle_transformation': True}
+        kw_defaults = {'mode': 'range', 'logB': True, 'angle_transformation': False, 'PowerTransformer': None}
         for kw in kw_defaults.keys():
             kwargs.setdefault(kw, kw_defaults[kw])
         transform = getattr(transforms, transform_name)(**kwargs)
