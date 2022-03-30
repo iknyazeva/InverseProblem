@@ -1,0 +1,4 @@
+0 spectra_directory=C:\data\hinode\sp_20140510_105533\hao\web\csac.hao.ucar.edu\data\hinode\sot\level1\2014\05\10\SP3D\20140510_105533\
+1 reference file=C:\data\hinode\all\20140510_105533.fits
+2 initial mode=0
+3 output_directory =C:\results\ME_LM\
