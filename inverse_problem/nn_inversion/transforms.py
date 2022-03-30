@@ -151,7 +151,7 @@ def normalize_output(y, mode='range', logB=True, angle_transformation=False, Pow
         kw_defaults['min'][1:3] = -1, -1
 
     if PowerTransformer:
-        return PowerTransformer.transform(y.reshape(1, -1)).T
+        return PowerTransformer.transform(y.reshape(-1, 11))
 
     for key in kwargs:
         if key not in allowedmodes[mode]:
