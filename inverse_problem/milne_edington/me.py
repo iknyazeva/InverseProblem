@@ -1,8 +1,11 @@
+import math
+import os
+
+import astropy.io.fits as fits
+import numpy as np
 import scipy
 import scipy.special
-import numpy as np
-import os
-import astropy.io.fits as fits
+from numba import jit
 from tqdm import tqdm
 
 c = 3e10
@@ -10,6 +13,9 @@ mass = 9.1e-28
 el_c = 4.8e-10
 
 absolute_noise_levels = [109, 28, 28, 44]
+
+nopython = True
+parallel = True
 
 
 class HinodeME(object):
@@ -207,7 +213,7 @@ def generate_noise(param_vec, absolute_noise_levels=[109, 28, 28, 44], noise_siz
     if noise_size is None:
         noise_size = (param_vec.shape[0], 56, 4)
     cont = np.array(param_vec[:, 6] + mu * param_vec[:, 7]).reshape(-1, 1, 1)
-    noise_level = np.array(absolute_noise_levels).reshape(1, 1, 4)/cont
+    noise_level = np.array(absolute_noise_levels).reshape(1, 1, 4) / cont
     noise = noise_level * np.random.normal(size=noise_size)
 
     return noise
@@ -289,44 +295,58 @@ def _compute_spectrum(B, theta, xi, D, gamma, etta_0, S_0, S_1, Dop_shift, line_
     Returns:
         spectrum lines: I, Q, U, V as a
     """
+
     wl0 = line_vec[0] * 1e-8
     g = line_vec[1]
     mu = line_vec[2]
 
-    def H_function(v, a):
-        return np.real(scipy.special.wofz(v + a * 1j))
+    def faddeeva(v, a):
+        z = v + a * 1j
+        return scipy.special.wofz(z)
 
-    def L_function(v, a):
-        return np.imag(scipy.special.wofz(v + a * 1j))
+    x = line_arg.copy() * 1e-11
+    v = (np.reshape(x, (len(x), 1)) - Dop_shift) / D
 
-    if not isinstance(B, float):
-        x = np.broadcast_to(line_arg, (len(B), len(line_arg))).T
-    else:
-        x = np.broadcast_to(line_arg, (1, 56)).T
-
-    v = (x * 1e-11 - Dop_shift) / D
-    a = gamma
+    a = gamma.copy()
     v_b = B * wl0 * wl0 * el_c / (4 * np.pi * mass * c * c * D)
-    # Df = D * c / (wl0 * wl0)
 
-    ka_L = etta_0 * np.sqrt(np.pi)
+    faddeeva1 = faddeeva(v, a)
+    H1, L1 = faddeeva1.real, faddeeva1.imag
 
-    etta_p = H_function(v, a) / np.sqrt(np.pi)
-    etta_b = H_function(v - g * v_b, a) / np.sqrt(np.pi)
-    etta_r = H_function(v + g * v_b, a) / np.sqrt(np.pi)
+    faddeeva2 = faddeeva(v - g * v_b, a)
+    H2, L2 = faddeeva2.real, faddeeva2.imag
 
-    rho_p = L_function(v, a) / np.sqrt(np.pi)
-    rho_b = L_function(v - g * v_b, a) / np.sqrt(np.pi)
-    rho_r = L_function(v + g * v_b, a) / np.sqrt(np.pi)
+    faddeeva3 = faddeeva(v + g * v_b, a)
+    H3, L3 = faddeeva3.real, faddeeva3.imag
 
-    h_I = 0.5 * (etta_p * np.sin(theta) * np.sin(theta) + 0.5 * (etta_b + etta_r) * (
-            1 + np.cos(theta) * np.cos(theta)))
-    h_Q = 0.5 * (etta_p - 0.5 * (etta_b + etta_r)) * np.sin(theta) * np.sin(theta) * np.cos(2 * xi)
-    h_U = 0.5 * (etta_p - 0.5 * (etta_b + etta_r)) * np.sin(theta) * np.sin(theta) * np.sin(2 * xi)
-    h_V = 0.5 * (etta_r - etta_b) * np.cos(theta)
-    r_Q = 0.5 * (rho_p - 0.5 * (rho_b + rho_r)) * np.sin(theta) * np.sin(theta) * np.cos(2 * xi)
-    r_U = 0.5 * (rho_p - 0.5 * (rho_b + rho_r)) * np.sin(theta) * np.sin(theta) * np.sin(2 * xi)
-    r_V = 0.5 * (rho_r - rho_b) * np.cos(theta)
+    return _comp_numba(mu, H1, H2, H3, L1, L2, L3, theta, xi, etta_0, S_0, S_1)
+
+
+@jit(nopython=nopython, parallel=parallel)
+def _comp_numba(mu, H1, H2, H3, L1, L2, L3, theta, xi, etta_0, S_0, S_1):
+    ka_L = etta_0 * math.sqrt(np.pi)
+
+    etta_p = H1 / math.sqrt(np.pi)
+    etta_b = H2 / math.sqrt(np.pi)
+    etta_r = H3 / math.sqrt(np.pi)
+
+    rho_p = L1 / math.sqrt(np.pi)
+    rho_b = L2 / math.sqrt(np.pi)
+    rho_r = L3 / math.sqrt(np.pi)
+
+    sin_theta2 = np.sin(theta) * np.sin(theta)
+    cos_theta = np.cos(theta)
+
+    sin2xi = np.sin(2 * xi)
+    cos2xi = np.cos(2 * xi)
+
+    h_I = 0.5 * (etta_p * sin_theta2 + 0.5 * (etta_b + etta_r) * (1 + cos_theta * cos_theta))
+    h_Q = 0.5 * (etta_p - 0.5 * (etta_b + etta_r)) * sin_theta2 * cos2xi
+    h_U = 0.5 * (etta_p - 0.5 * (etta_b + etta_r)) * sin_theta2 * sin2xi
+    h_V = 0.5 * (etta_r - etta_b) * cos_theta
+    r_Q = 0.5 * (rho_p - 0.5 * (rho_b + rho_r)) * sin_theta2 * cos2xi
+    r_U = 0.5 * (rho_p - 0.5 * (rho_b + rho_r)) * sin_theta2 * sin2xi
+    r_V = 0.5 * (rho_r - rho_b) * cos_theta
 
     k_I = ka_L * h_I
     k_Q = ka_L * h_Q
@@ -348,7 +368,7 @@ def _compute_spectrum(B, theta, xi, D, gamma, etta_0, S_0, S_1, Dop_shift, line_
     Q = -S_1 * mu / det * ((1 + k_I) * (1 + k_I) * k_Q - (1 + k_I) * (k_U * f_V - k_V * f_U) + f_Q * (
             k_Q * f_Q + k_U * f_U + k_V * f_V))
 
-    return np.transpose(np.array([I, Q, U, V]))
+    return np.transpose(np.stack((I, Q, U, V)))
 
 
 def read_full_spectra(cont_scale, files_path=None, files_list=None):
@@ -386,4 +406,4 @@ def read_full_spectra(cont_scale, files_path=None, files_list=None):
 
         full_spectra[X_count] = real_sp
 
-    return full_spectra, normalization/cont_scale
+    return full_spectra, normalization / cont_scale

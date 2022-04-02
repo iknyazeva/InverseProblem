@@ -20,3 +20,5 @@ attr
 attrs
 pytest
 gdown
+
+numba
