@@ -449,7 +449,7 @@ def plot_analysis_hist2d_up(refer, predicted_mu, predicted_sigma, names=None, in
     return fig, axs
 
 
-def plot_hist_params(pars_arr, pars_names=None, plot_name='params_hist', bins=100, save_path=None):
+def plot_hist_params(pars_arr, pars_names=None, plot_name=None, bins=100, save_path=None):
     """
     Draw histograms for all parameters at once
     """
@@ -479,7 +479,8 @@ def plot_hist_params(pars_arr, pars_names=None, plot_name='params_hist', bins=10
     fig.delaxes(axs[2][3])
     if save_path:
         fig.savefig(save_path + ".png")
-    plt.suptitle(plot_name, fontsize=18)
+    if plot_name:
+        plt.suptitle(plot_name, fontsize=18)
     plt.show()
 
 
