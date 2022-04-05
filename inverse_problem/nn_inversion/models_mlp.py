@@ -1,8 +1,7 @@
-import torch.nn.functional as F
 import torch
+import torch.nn.functional as F
 from torch import nn
-import torchvision
-from pathlib import Path
+
 from inverse_problem.nn_inversion.layers import MLPBlock, MLPReadout
 
 

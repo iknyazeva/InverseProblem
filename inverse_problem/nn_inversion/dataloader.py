@@ -1,18 +1,17 @@
-from inverse_problem.nn_inversion.dataset import SpectrumDataset, PregenSpectrumDataset
-import torch
-from sklearn.model_selection import train_test_split
-from torch.utils.data import Subset
-from tqdm import tqdm
-from torch import nn
-import os
 from pathlib import Path
+from typing import Tuple, Any
+
+from sklearn.model_selection import train_test_split
 from torch.utils.data import DataLoader
+from torch.utils.data import Subset
+
 from inverse_problem.nn_inversion import transforms
+from inverse_problem.nn_inversion.dataset import SpectrumDataset, PregenSpectrumDataset
 
 
 def make_loader(data_arr=None, filename: Path = None, pregen=False, ff=True, noise=True,
                 val_split=0.1, source="database", transform_name="mlp_transform_rescale", batch_size=64, num_workers=0,
-                **kwargs) -> DataLoader:
+                **kwargs) -> Tuple[DataLoader[Any], DataLoader[Any]]:
     """
 
     Args:
@@ -31,7 +30,7 @@ def make_loader(data_arr=None, filename: Path = None, pregen=False, ff=True, noi
         raise AssertionError('you need provide data as array or path to data')
 
     if transform_name is not None:
-        kw_defaults = {'mode': 'range', 'logB': True, 'angle_transformation': True}
+        kw_defaults = {'mode': 'range', 'logB': True, 'angle_transformation': False, 'PowerTransformer': None}
         for kw in kw_defaults.keys():
             kwargs.setdefault(kw, kw_defaults[kw])
         transform = getattr(transforms, transform_name)(**kwargs)

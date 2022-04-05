@@ -1,12 +1,13 @@
-from typing import List, Union
-from astropy.io import fits
-from inverse_problem.milne_edington.me import me_model
-import numpy as np
 import os
 from pathlib import Path
-from tqdm import tqdm
-import matplotlib.pyplot as plt
+
 import gdown
+import matplotlib.pyplot as plt
+import numpy as np
+from astropy.io import fits
+from tqdm import tqdm
+
+from inverse_problem.milne_edington.me import me_model
 
 
 def get_project_root() -> Path:
@@ -24,12 +25,11 @@ def download_from_google_disc(fileid=None, dest=None):
 
     """
     if fileid is None:
-
         fileid = '19jkSXHxAPWZvfgo5oxSmvEagme5YLY33'
     url = 'https://drive.google.com/uc?id=' + fileid
     if dest is None:
         dest = Path(os.getcwd()).parent / 'data' / 'downloaded_parameters_base.fits'
-    #gdown.download(url, dest, quiet=False)
+    # gdown.download(url, dest, quiet=False)
     gdown.download(id=fileid, output=dest, quiet=False)
 
 
