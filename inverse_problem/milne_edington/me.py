@@ -183,20 +183,21 @@ def me_model(param_vec, line_arg=None, line_vec=None,
         quiet_spectrum = spectrum
 
     if with_noise:
-        noise = generate_noise(param_vec, mu=mu, **kwargs)
+        noise = generate_noise(param_vec, mu=mu, norm=norm, **kwargs)
         return quiet_spectrum + noise
 
     else:
         return quiet_spectrum
 
 
-def generate_noise(param_vec, absolute_noise_levels=[109, 28, 28, 44], noise_size=None, mu=1):
+def generate_noise(param_vec, absolute_noise_levels=[109, 28, 28, 44], noise_size=None, mu=1, norm=True):
     """
     Args:
         noise_size: shape of resulted noise
         param_vec (list or ndarray): list of 11 atmosphere parameters
         mu:
         absolute_noise_levels (list of numbers): magical empirical values
+        norm (bool): if this noise should be added to normalized spectrum
 
     Returns:
         noise as ndarray with the same shape as spectrum generated from param_vec
@@ -207,7 +208,10 @@ def generate_noise(param_vec, absolute_noise_levels=[109, 28, 28, 44], noise_siz
     if noise_size is None:
         noise_size = (param_vec.shape[0], 56, 4)
     cont = np.array(param_vec[:, 6] + mu * param_vec[:, 7]).reshape(-1, 1, 1)
-    noise_level = np.array(absolute_noise_levels).reshape(1, 1, 4)/cont
+    if norm:
+        noise_level = np.array(absolute_noise_levels).reshape(1, 1, 4)/cont
+    else:
+        noise_level = np.array(absolute_noise_levels).reshape(1, 1, 4)
     noise = noise_level * np.random.normal(size=noise_size)
 
     return noise
