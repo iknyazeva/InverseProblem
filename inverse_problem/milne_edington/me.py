@@ -169,8 +169,7 @@ def me_model(param_vec, line_arg=None, line_vec=None,
         line_vec = (6302.5, 2.5, 1)
     if line_arg is None:
         line_arg = 1000 * (np.linspace(6302.0692255, 6303.2544205, 56) - line_vec[0])
-    wl0 = line_vec[0] * 1e-8
-    g = line_vec[1]
+
     mu = line_vec[2]
 
     param_vec = np.array(param_vec, dtype='float')
@@ -191,7 +190,6 @@ def me_model(param_vec, line_arg=None, line_vec=None,
     if with_noise:
         noise = generate_noise(param_vec, mu=mu, **kwargs)
         return quiet_spectrum + noise
-
     else:
         return quiet_spectrum
 
@@ -254,7 +252,7 @@ def _prepare_base_model_parameters(param_vec, line_vec, norm=True):
     etta_0 = params[5]  # line strength
 
     S_0 = params[6]  # Source function
-    S_1 = params[7]  # Source function decrement  # Source function decrement
+    S_1 = params[7]  # Source function decrement
 
     Dop_shift = params[8] * 1e5 / c * wl0  # Doppler shift
     return B, theta, xi, D, gamma, etta_0, S_0, S_1, Dop_shift
@@ -356,17 +354,29 @@ def _comp_numba(mu, H1, H2, H3, L1, L2, L3, theta, xi, etta_0, S_0, S_1):
     f_U = ka_L * r_U
     f_V = ka_L * r_V
 
-    det = np.power(1 + k_I, 4) + np.power(1 + k_I, 2) * (
-            f_Q * f_Q + f_U * f_U + f_V * f_V - k_Q * k_Q - k_U * k_U - k_V * k_V) - np.power(
-        k_Q * f_Q + k_U * f_U + k_V * f_V, 2)
+    f_Q2 = f_Q * f_Q
+    f_U2 = f_U * f_U
+    f_V2 = f_V * f_V
+    kf_Q = k_Q * f_Q
+    kf_U = k_U * f_U
+    kf_V = k_V * f_V
 
-    I = S_0 + S_1 * mu - mu * S_1 * (
-            1 - (1 + k_I) * ((1 + k_I) * (1 + k_I) + f_Q * f_Q + f_U * f_U + f_V * f_V) / det)
-    V = mu * S_1 * ((1 + k_I) * (1 + k_I) * k_V + f_V * (k_Q * f_Q + k_U * f_U + k_V * f_V)) / det
-    U = -S_1 * mu / det * ((1 + k_I) * (1 + k_I) * k_U - (1 + k_I) * (k_V * f_Q - k_Q * f_V) + f_U * (
-            k_Q * f_Q + k_U * f_U + k_V * f_V))
-    Q = -S_1 * mu / det * ((1 + k_I) * (1 + k_I) * k_Q - (1 + k_I) * (k_U * f_V - k_V * f_U) + f_Q * (
-            k_Q * f_Q + k_U * f_U + k_V * f_V))
+    kf_sum = kf_Q + kf_U + kf_V
+
+    muS_1 = mu * S_1
+    k_I1 = 1 + k_I
+    k_I2 = k_I1 * k_I1
+
+    det = np.power(k_I1, 4) + np.power(k_I1, 2) * (f_Q2 + f_U2 + f_V2 - k_Q *
+                                                   k_Q - k_U * k_U - k_V * k_V) - np.power(kf_sum, 2)
+
+    det1 = 1 / det
+    mult = muS_1 * det1
+
+    I = S_0 + muS_1 - muS_1 * (1 - k_I1 * det1 * (k_I2 + f_Q2 + f_U2 + f_V2))
+    V = mult * (k_I2 * k_V + f_V * kf_sum)
+    U = -mult * (k_I2 * k_U - k_I1 * (k_V * f_Q - k_Q * f_V) + f_U * kf_sum)
+    Q = -mult * (k_I2 * k_Q - k_I1 * (k_U * f_V - k_V * f_U) + f_Q * kf_sum)
 
     return np.transpose(np.stack((I, Q, U, V)))
 
