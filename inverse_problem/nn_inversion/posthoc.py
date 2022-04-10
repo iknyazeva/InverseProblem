@@ -403,13 +403,6 @@ def plot_analysis_hist2d_up(refer, predicted_mu, predicted_sigma, names=None, in
     predicted_mu_flat = predicted_mu.reshape(-1, 11)
     predicted_sigma_flat = predicted_sigma.reshape(-1, 11)
 
-    if mask is not None:
-        mask_flat = mask.reshape(-1, 11)
-        masked_rows = np.any(mask_flat, axis=1)
-        refer_flat = refer_flat[~masked_rows, :]
-        predicted_mu_flat = predicted_mu_flat[~masked_rows, :]
-        predicted_sigma_flat = predicted_sigma_flat[~masked_rows, :]
-
     fig, axs = plt.subplots(3, 4, figsize=(19, 15), constrained_layout=True)
     fig.suptitle(title, fontsize=16)
 

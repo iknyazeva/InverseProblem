@@ -65,6 +65,9 @@ class SpectrumDataset(Dataset):
 
         spectrum = obj.compute_spectrum(with_ff=self.ff, with_noise=self.noise)[0]
         sample = {'X': (spectrum, obj.cont), 'Y': obj.param_vector}
+        #todo будем  переделывать континум?
+        #sample = {'X': (spectrum, np.max(spectrum)), 'Y': obj.param_vector}
+
         if self.transform:
             sample = self.transform(sample)
         return sample
@@ -117,6 +120,7 @@ class PregenSpectrumDataset(Dataset):
         obj = BatchHinodeME(param_source)
         spectrum = obj.compute_spectrum(with_ff=self.ff, with_noise=self.noise)
         samples = {'X': (spectrum, obj.cont), 'Y': obj.param_vector}
+        #samples = {'X': (spectrum, np.max(spectrum, axis=1)), 'Y': obj.param_vector}
 
         if self.transform:
             samples = self.transform(samples)

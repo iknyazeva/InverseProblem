@@ -65,18 +65,15 @@ class TestModelMe:
     @pytest.fixture
     def param_vec_0(self):
         project_path = get_project_root()
-        filename = project_path / 'data' / 'parameters_base.fits'
+        filename = project_path / 'data' / 'small_parameters_base.fits'
         param_vec = fits.open(filename)[0].data[:2]
         return param_vec
 
     def test_generate_noise(self, param_vec_0):
-        noise = generate_noise(param_vec_0)
+        noise = generate_noise(param_vec_0, norm=False)
         assert noise.shape[0] == param_vec_0.shape[0]
         assert noise.shape[1] == 56
         assert noise.shape[2] == 4
-        noise = generate_noise(param_vec_0[0])
-        assert noise.shape[0] == 1
-        assert noise.shape[1] == 56
         assert noise.shape[2] == 4
 
     def test_me_model_no_noise(self):
@@ -91,11 +88,11 @@ class TestModelMe:
         assert expected_ff_I == pytest.approx(spectrum_ff[0, :3, 0], rel=1e-4)
         assert expected_ff_QUV == pytest.approx(spectrum_ff[0, 0, 1:4], rel=1e-3)
 
-    def test_me_model_with_noise(self, param_vec_0):
+    def test_me_model_with_noise_norm(self, param_vec_0):
         line_vec = (6302.5, 2.5, 1)
         line_arg = 1000 * (np.linspace(6302.0692255, 6303.2544205, 56) - line_vec[0])
-        spectrum_no_noise = me_model(param_vec_0[0], line_arg, line_vec, with_ff=True, with_noise=False)
-        spectrum_with_noise = me_model(param_vec_0[0], line_arg, line_vec, with_ff=True, with_noise=True)
+        spectrum_no_noise = me_model(param_vec_0[0], line_arg, line_vec, with_ff=True, with_noise=False, norm=False)
+        spectrum_with_noise = me_model(param_vec_0[0], line_arg, line_vec, with_ff=True, with_noise=True, norm=False)
         signal_to_noise = np.mean(spectrum_with_noise / spectrum_no_noise, axis=1)
         assert np.mean(signal_to_noise, axis=1) < 1000
 
@@ -200,7 +197,7 @@ class TestHinodeME:
     def test_hinode_from_array(self, param_array):
         param_vec = param_array[1]
         obj = HinodeME(param_vec)
-        spectrum = obj.compute_spectrum(with_ff=True, with_noise=False)
+        spectrum = obj.compute_spectrum(with_ff=True, with_noise=True)
         assert True
 
     def test_from_refer(self):
