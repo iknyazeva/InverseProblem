@@ -245,7 +245,7 @@ class ToTensor(object):
         if isinstance(cont, float):
             cont = torch.FloatTensor([cont])
         else:
-            cont = torch.from_numpy(cont).float().reshape(-1,1)
+            cont = torch.from_numpy(cont).float().reshape(-1, 1)
         return {'X': (torch.from_numpy(spectrum).float(), cont),
                 'Y': torch.from_numpy(params.astype(np.float32)).squeeze()}
 
