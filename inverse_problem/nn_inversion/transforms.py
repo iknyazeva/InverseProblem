@@ -22,7 +22,8 @@ class Normalize:
         self.norm_output = norm_output
 
         if norm_output:
-            kw_defaults = {'mode': 'range', 'logB': True, 'angle_transformation': False, 'PowerTransformer': None}
+            kw_defaults = {'mode': 'range', 'logB': True, 'angle_transformation': False, 'PowerTransformer': None,
+                           'QuantileTransformer': None}
             for kw in kw_defaults.keys():
                 kwargs.setdefault(kw, kw_defaults[kw])
         self.kwargs = kwargs
@@ -34,7 +35,8 @@ class Normalize:
                                       mode=self.kwargs['mode'],
                                       logB=self.kwargs['logB'],
                                       angle_transformation=self.kwargs['angle_transformation'],
-                                      PowerTransformer=self.kwargs['PowerTransformer'])
+                                      PowerTransformer=self.kwargs['PowerTransformer'],
+                                      QuantileTransformer=self.kwargs['QuantileTransformer'])
         return {'X': sample['X'],
                 'Y': params}
 
@@ -108,7 +110,8 @@ class Rescale(Normalize):
         return sample
 
 
-def normalize_output(y, mode='range', logB=True, angle_transformation=False, PowerTransformer=None, **kwargs):
+def normalize_output(y, mode='range', logB=True, angle_transformation=False, PowerTransformer=None,
+                     QuantileTransformer=None, **kwargs):
     """
     Function for output
     Args:
@@ -117,6 +120,7 @@ def normalize_output(y, mode='range', logB=True, angle_transformation=False, Pow
         logB (bool): apply logarithmic transform to B
         angle_transformation (bool): angle transformation for inclination and azimuth (parameters with index 1 and 2)
         PowerTransformer ():
+        QuantileTransformer ():
         **kwargs:
 
     Returns:
@@ -152,6 +156,9 @@ def normalize_output(y, mode='range', logB=True, angle_transformation=False, Pow
 
     if PowerTransformer:
         return PowerTransformer.transform(y.reshape(-1, 11))
+
+    if QuantileTransformer:
+        return QuantileTransformer.transform(y.reshape(-1, 11))
 
     for key in kwargs:
         if key not in allowedmodes[mode]:
