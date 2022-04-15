@@ -305,7 +305,7 @@ class ToConv1d(object):
 
 def conv1d_transform_rescale(**kwargs) -> Callable:
     allowed_kwargs = {'factors', 'cont_scale', 'norm_output', 'logB', 'angle_transformation', 'mode',
-                      'PowerTransformer'}
+                      'PowerTransformer', 'QuantileTransformer'}
     for key in kwargs:
         if key not in allowed_kwargs:
             raise KeyError(f'{key} not in allowed keywords')
