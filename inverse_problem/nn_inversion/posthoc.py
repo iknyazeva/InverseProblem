@@ -403,6 +403,29 @@ def plot_analysis_hist2d_up(refer, predicted_mu, predicted_sigma, names=None, in
     predicted_mu_flat = predicted_mu.reshape(-1, 11)
     predicted_sigma_flat = predicted_sigma.reshape(-1, 11)
 
+    zero_rows = np.any(predicted_sigma_flat == 0, axis=1)
+
+    if np.any(zero_rows) and mask is not None:
+        print(f'Objects with sigma=0: {np.sum(zero_rows)}')
+
+        mask_flat = mask.reshape(-1, 11)
+        masked_rows = np.any(mask_flat, axis=1)
+
+        masked_rows = masked_rows | zero_rows
+    elif np.any(zero_rows):
+        print(f'Objects with sigma=0: {np.sum(zero_rows)}')
+
+        masked_rows = zero_rows
+    elif mask is not None:
+        mask_flat = mask.reshape(-1, 11)
+        masked_rows = np.any(mask_flat, axis=1)
+    else:
+        masked_rows = np.any(np.zeros_like(refer_flat, dtype=np.bool_), axis=1)
+
+    refer_flat = refer_flat[~masked_rows, :]
+    predicted_mu_flat = predicted_mu_flat[~masked_rows, :]
+    predicted_sigma_flat = predicted_sigma_flat[~masked_rows, :]
+
     fig, axs = plt.subplots(3, 4, figsize=(19, 15), constrained_layout=True)
     fig.suptitle(title, fontsize=16)
 
@@ -477,7 +500,7 @@ def plot_hist_params(pars_arr, pars_names=None, plot_name=None, bins=100, save_p
     plt.show()
 
 
-def plot_hist_params_comparison(pars_arr1, pars_arr2, pars_names=None, mask=None, plot_name=None, bins=100,
+def plot_hist_params_comparison(prediction, refer, pars_names=None, mask=None, plot_name=None, bins=100,
                                 save_path=None):
     if pars_names is None:
         pars_names = ['Field Strength',
@@ -492,8 +515,8 @@ def plot_hist_params_comparison(pars_arr1, pars_arr2, pars_names=None, mask=None
                       'Filling Factor',
                       'Stray light Doppler shift']
 
-    pars_arr1 = pars_arr1.reshape(-1, 11)
-    pars_arr2 = pars_arr2.reshape(-1, 11)
+    pars_arr1 = prediction.reshape(-1, 11)
+    pars_arr2 = refer.reshape(-1, 11)
 
     if mask is not None:
         mask_flat = mask.reshape(-1, 11)
