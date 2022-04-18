@@ -374,7 +374,7 @@ def plot_analysis_hist2d(refer, predicted, names=None, index=0, mask=None, title
 
 
 def plot_analysis_hist2d_up(refer, predicted_mu, predicted_sigma, names=None, index=0, mask=None, title=None, bins=100,
-                            save_path=None):
+                            save_path=None, number_of_samples=None, outliers=False):
     """
         draws 2d graphs:
         1. (x_true - x_pred)/sigma_pred vs x_true,
@@ -426,6 +426,12 @@ def plot_analysis_hist2d_up(refer, predicted_mu, predicted_sigma, names=None, in
     predicted_mu_flat = predicted_mu_flat[~masked_rows, :]
     predicted_sigma_flat = predicted_sigma_flat[~masked_rows, :]
 
+    if number_of_samples:
+        indices = np.random.choice(refer_flat.shape[0], number_of_samples, replace=False)
+        refer_flat = refer_flat[indices]
+        predicted_mu_flat = predicted_mu_flat[indices]
+        predicted_sigma_flat = predicted_sigma_flat[indices]
+
     fig, axs = plt.subplots(3, 4, figsize=(19, 15), constrained_layout=True)
     fig.suptitle(title, fontsize=16)
 
@@ -438,6 +444,18 @@ def plot_analysis_hist2d_up(refer, predicted_mu, predicted_sigma, names=None, in
             X, Y = refer_flat[:, i], predicted_sigma_flat[:, i]
         else:
             raise ValueError
+
+        if outliers:
+            y_bot = np.percentile(Y, 1)
+            y_top = np.percentile(Y, 99)
+            y_pad = 0.2 * (y_top - y_bot)
+
+            y_min = y_bot - y_pad
+            y_max = y_top + y_pad
+
+            mask_range = (Y > y_min) & (Y < y_max)
+            X = X[mask_range]
+            Y = Y[mask_range]
 
         ax.set_title(names[i], weight='bold')
         plot_params = ax.hist2d(X, Y, bins=bins, norm=LogNorm())
