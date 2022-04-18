@@ -374,7 +374,7 @@ def plot_analysis_hist2d(refer, predicted, names=None, index=0, mask=None, title
 
 
 def plot_analysis_hist2d_up(refer, predicted_mu, predicted_sigma, names=None, index=0, mask=None, title=None, bins=100,
-                            save_path=None, number_of_samples=None, outliers=False):
+                            save_path=None, number_of_samples=None, outliers=None):
     """
         draws 2d graphs:
         1. (x_true - x_pred)/sigma_pred vs x_true,
@@ -405,16 +405,12 @@ def plot_analysis_hist2d_up(refer, predicted_mu, predicted_sigma, names=None, in
 
     zero_rows = np.any(predicted_sigma_flat == 0, axis=1)
 
-    if np.any(zero_rows) and mask is not None:
-        print(f'Objects with sigma=0: {np.sum(zero_rows)}')
-
+    if np.any(zero_rows) and mask is not None and index == 0:
         mask_flat = mask.reshape(-1, 11)
         masked_rows = np.any(mask_flat, axis=1)
 
         masked_rows = masked_rows | zero_rows
-    elif np.any(zero_rows):
-        print(f'Objects with sigma=0: {np.sum(zero_rows)}')
-
+    elif np.any(zero_rows) and index == 0:
         masked_rows = zero_rows
     elif mask is not None:
         mask_flat = mask.reshape(-1, 11)
@@ -425,6 +421,8 @@ def plot_analysis_hist2d_up(refer, predicted_mu, predicted_sigma, names=None, in
     refer_flat = refer_flat[~masked_rows, :]
     predicted_mu_flat = predicted_mu_flat[~masked_rows, :]
     predicted_sigma_flat = predicted_sigma_flat[~masked_rows, :]
+
+    print(f'Objects with sigma=0: {np.any(predicted_sigma_flat == 0, axis=1).sum()}')
 
     if number_of_samples:
         indices = np.random.choice(refer_flat.shape[0], number_of_samples, replace=False)
@@ -446,8 +444,8 @@ def plot_analysis_hist2d_up(refer, predicted_mu, predicted_sigma, names=None, in
             raise ValueError
 
         if outliers:
-            y_bot = np.percentile(Y, 1)
-            y_top = np.percentile(Y, 99)
+            y_bot = np.percentile(Y, outliers[0])
+            y_top = np.percentile(Y, outliers[1])
             y_pad = 0.2 * (y_top - y_bot)
 
             y_min = y_bot - y_pad
@@ -515,7 +513,8 @@ def plot_hist_params(pars_arr, pars_names=None, plot_name=None, bins=100, save_p
         fig.savefig(save_path + ".png")
     if plot_name:
         plt.suptitle(plot_name, fontsize=18)
-    plt.show()
+
+    return fig, axs
 
 
 def plot_hist_params_comparison(prediction, refer, pars_names=None, mask=None, plot_name=None, bins=100,
