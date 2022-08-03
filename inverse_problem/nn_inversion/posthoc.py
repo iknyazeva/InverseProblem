@@ -5,7 +5,7 @@ import os
 import torch
 from inverse_problem.nn_inversion import normalize_spectrum
 
-from inverse_problem import HinodeME
+from inverse_problem import HinodeME, me_model
 import glob
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 from inverse_problem.nn_inversion.transforms import normalize_output
@@ -16,9 +16,15 @@ from scipy import stats
 
 
 def open_param_file(path, normalize=True, print_params=True, **kwargs):
-    """
+    """ Build parameters vector on the basis of the Hinode fits from e https://csac.hao.ucar.edu/fg_download.php
+        we need to select date and toogle level1 (big dataset, available with delay)
+        and level 2 with parameters inversion.
+        After that data should be saved in directory (path_to_folder) and level1
+        folder renamed as file with inverted parameters, example:
     Args:
-        print_params (object):
+        path (object): path to  source data
+        print_params (bool): if print chosen parameters
+        normalize (bool): if need to normalize as used in neural networks
     """
     refer = fits.open(path)
     param_list = [1, 2, 3, 6, 8, 7, 9, 10, 5, 12, 13]
@@ -32,6 +38,106 @@ def open_param_file(path, normalize=True, print_params=True, **kwargs):
         data = normalize_output(data.reshape(-1, 11), **kwargs).reshape(shape)
 
     return data, names
+
+
+def open_spectrum_data(sp_folder, date, idx):
+    """
+    path should start from the folder included in level1 folder, with data year
+    only for this path_to_folder like this sp_20140926_170005
+    """
+    sp_path = os.path.join(sp_folder, date[0], date[1], date[2], 'SP3D')
+    sp_path = glob.glob(f'{sp_path}/*/')[0]
+    sp_lines = sorted(glob.glob(sp_path + '*.fits'))
+    # print(f'Number of files: {len(sp_lines)}')
+    return fits.open(sp_lines[idx])
+
+
+def real_spectra(spectra_file, mult_I=2):
+    """
+    Extracting and plotting spectral lines from fits
+    Why multiply to numbers? Multiply to 2 because in the source data it is divided by 2
+    """
+    real_I = spectra_file[0].data[0][:, 56:].astype('float64') * mult_I
+    real_Q = spectra_file[0].data[1][:, 56:].astype('float64')
+    real_U = spectra_file[0].data[2][:, 56:].astype('float64')
+    real_V = spectra_file[0].data[3][:, 56:].astype('float64')
+    return np.concatenate((real_I, real_Q, real_U, real_V), axis=1)
+
+
+def plot_real_spectrum(sp_folder, path_to_refer, idx_0, idx_1, norm=True, plot_spectrum=True):
+    """  Plot spectrum, corresponding referens values of parameters and model spectrum
+    idx_0 - index of line in one spectrum file (512), idx_1 - index of spectrum file sorted by time (873 in total)
+    Returns:
+
+    Args:
+       sp_folder (object): path to folder with real spectrum
+       path_to_refer (object): path to folder with the parameters
+       date (list of object): #date as a list with year, month,day, hour ['2014','09','26','17']
+       idx_0 (int): idx_0 - index of line in one spectrum file (512)
+       idx_1 (): index of spectrum file sorted by time (873 in total)
+
+    Returns:
+        full_line
+        cont_int
+        params
+    """
+    assert 0 < idx_0 < 512, "Index 0 should be in range (0, 512)"
+    assert 0 < idx_1 < 873, "Index 1 should be in range (0, 873)"
+
+    refer, names = open_param_file(path_to_refer, print_params=False, normalize=False)
+    date_str = sp_folder.split("_")[-2]
+    date = [date_str[:4], date_str[4:6], date_str[6:]]
+    spectra_file = open_spectrum_data(sp_folder, date, idx_1)
+    real_sp = real_spectra(spectra_file)
+    full_line = real_sp[idx_0, :]
+    params = refer[idx_0, idx_1]
+    cont_int = np.max(full_line)
+
+    if plot_spectrum:
+        fig, ax = plt.subplots(2, 2, figsize=(10, 5))
+        line_type = ['I', 'Q', 'U', 'V']
+        print('Real spectrum for parameters')
+        print(', '.join([names[i] + f': {params[i]:.2f}' for i in range(11)]))
+
+        for i in range(4):
+            if norm:
+                ax[i // 2][i % 2].plot(full_line[i * 56:i * 56 + 56] / cont_int)
+            else:
+                ax[i // 2][i % 2].plot(full_line[i * 56:i * 56 + 56])
+            ax[i // 2][i % 2].set_title(f'Spectral line {line_type[i]}')
+        fig.suptitle(f'Real spectrum with empiric intensity {cont_int :.1f}', fontsize=16, fontweight="bold")
+        fig.set_tight_layout(tight=True)
+        if norm:
+            return full_line.reshape((1, 56, 4), order='F')/cont_int, cont_int, params
+        else:
+            return full_line.reshape((1, 56, 4), order='F'), cont_int, params
+
+
+def plot_model_spectrum(path_to_refer, idx_0, idx_1,
+                        with_noise=True, with_ff=True, norm=True, line_vec=None, line_arg=None,
+                        plot_spectrum=True):
+    refer, names = open_param_file(path_to_refer, print_params=False, normalize=False)
+    param_vec = refer[idx_0, idx_1, :]
+    cont = np.sum(param_vec[6:8])
+
+    if line_vec is None:
+        line_vec = (6302.5, 2.5, 1)
+    if line_arg is None:
+        line_arg = 1000 * (np.linspace(6302.0692255, 6303.2544205, 56) - line_vec[0])
+    profile = me_model(param_vec, line_arg, line_vec, with_ff=with_ff, with_noise=with_noise, norm=norm)
+    if plot_spectrum:
+        fig, ax = plt.subplots(2, 2, figsize=(10, 5))
+        line_type = ['I', 'Q', 'U', 'V']
+        print('Model spectrum for parameters')
+        print(', '.join([names[i] + f': {refer[idx_0, idx_1, i]:.2f}' for i in range(11)]))
+
+        for i in range(4):
+            ax[i // 2][i % 2].plot(profile[0, :, i])
+            ax[i // 2][i % 2].set_title(f'Spectral line {line_type[i]}')
+        fig.set_tight_layout(tight=True)
+        fig.suptitle(f'Model spectrum with estimated intensity {cont:.1f}', fontsize=16, fontweight="bold")
+
+    return profile, param_vec, cont
 
 
 def nlpd_metric(refer, mean_pred, sigma_pred):
@@ -53,9 +159,9 @@ def nlpd_metric(refer, mean_pred, sigma_pred):
     metric : float
         NLPD metrc value.
     """
-    
-    metric = (refer - mean_pred)**2 / (2 * sigma_pred**2) + np.log(sigma_pred) + 0.5 * np.log(2 * np.pi)
-    
+
+    metric = (refer - mean_pred) ** 2 / (2 * sigma_pred ** 2) + np.log(sigma_pred) + 0.5 * np.log(2 * np.pi)
+
     return metric.mean(axis=0)
 
 
@@ -78,9 +184,9 @@ def nrmse_p_metric(refer, mean_pred, sigma_pred):
     metric : float
         nRMSEp metrc value.
     """
-    
-    metric = (refer - mean_pred)**2 / sigma_pred**2
-    
+
+    metric = (refer - mean_pred) ** 2 / sigma_pred ** 2
+
     return np.sqrt(metric.mean(axis=0))
 
 
@@ -105,10 +211,10 @@ def picp_metric(refer, mean_pred, sigma_pred, alpha=0.90):
     metric : float
         PICP metrc value.
     """
-    
+
     p_left, p_right = stats.norm.interval(alpha=alpha, loc=mean_pred, scale=sigma_pred)
     metric = (refer > p_left) * (refer <= p_right)
-    
+
     return metric.mean(axis=0)
 
 
@@ -173,7 +279,7 @@ def compute_metrics(refer, predicted, sigmas=None, index=None, names=None, mask=
         if sigmas is None:
             df = pd.DataFrame([r2list, mselist, maelist], columns=names, index=['r2', 'mse', 'mae']).T.round(4)
         else:
-            df = pd.DataFrame([r2list, mselist, maelist, nlpdlist, nrmseplist, picp68list, picp95list], columns=names, 
+            df = pd.DataFrame([r2list, mselist, maelist, nlpdlist, nrmseplist, picp68list, picp95list], columns=names,
                               index=['r2', 'mse', 'mae', 'nlpd', 'nrmse', 'picp68', 'picp95']).T.round(4)
         if save_path:
             df.to_csv(save_path)
@@ -189,48 +295,6 @@ def compute_metrics(refer, predicted, sigmas=None, index=None, names=None, mask=
             picp95 = picp_metric(refer[:, index], predicted[:, index], sigmas[:, index], alpha=0.95450)
             return r2, mae, mse, nlpd, nrmse, picp68, picp95
         return r2, mae, mse
-
-
-def plot_spectrum(sp_folder, date, path_to_refer, idx_0, idx_1):
-    """
-    Plot spectrum, corresponding referens values of parameters and model spectrum
-    idx_0 - index of line in one spectrum file (512), idx_1 - index of spectrum file sorted by time (873 in total)
-    """
-    # refer, names = open_param_file(path_to_refer, print_params=False, normalize=False)
-    spectra_file = open_spectrum_data(sp_folder, date, idx_1)
-    real_sp = real_spectra(spectra_file)
-    full_line = real_sp[idx_0, :]
-    fig, ax = plt.subplots(2, 2, figsize=(10, 5))
-    line_type = ['I', 'Q', 'U', 'V']
-    print('Real spectrum for parameters')
-    # print(', '.join([names[i]+f': {refer[idx_0,idx_1, i]:.2f}' for i in range(11)]))
-    cont_int = np.max(full_line)
-
-    for i in range(4):
-        ax[i // 2][i % 2].plot(full_line[i * 56:i * 56 + 56] / cont_int)
-        ax[i // 2][i % 2].set_title(f'Spectral line {line_type[i]}')
-    fig.suptitle(f'Real spectrum with empiric intensity {cont_int :.1f}', fontsize=16, fontweight="bold")
-    fig.set_tight_layout(tight=True)
-
-    return full_line, cont_int
-
-
-def plot_model_spectrum(refer, names, idx_0, idx_1):
-    param_vec = refer[idx_0, idx_1, :]
-    obj = HinodeME(param_vec)
-    profile = obj.compute_spectrum(with_ff=True, with_noise=True)
-    fig, ax = plt.subplots(2, 2, figsize=(10, 5))
-    line_type = ['I', 'Q', 'U', 'V']
-    print('Model spectrum for parameters')
-    print(', '.join([names[i] + f': {refer[idx_0, idx_1, i]:.2f}' for i in range(11)]))
-
-    for i in range(4):
-        ax[i // 2][i % 2].plot(profile[0, :, i])
-        ax[i // 2][i % 2].set_title(f'Spectral line {line_type[i]}')
-    fig.set_tight_layout(tight=True)
-    fig.suptitle(f'Model spectrum with estimated intensity {obj.cont:.1f}', fontsize=16, fontweight="bold")
-
-    return profile, obj.cont
 
 
 def read_spectrum_for_refer(sp_folder, date):
@@ -567,30 +631,6 @@ def plot_hist_params_comparison(prediction, refer, pars_names=None, mask=None, p
         plt.savefig(save_path + ".png")
 
     return fig, axs
-
-
-def open_spectrum_data(sp_folder, date, idx):
-    """
-    path should start from the folder included in level1 folder, with data year
-    only for this path_to_folder like this sp_20140926_170005
-    """
-    sp_path = os.path.join(sp_folder, date[0], date[1], date[2], 'SP3D')
-    sp_path = glob.glob(f'{sp_path}/*/')[0]
-    sp_lines = sorted(glob.glob(sp_path + '*.fits'))
-    # print(f'Number of files: {len(sp_lines)}')
-    return fits.open(sp_lines[idx])
-
-
-def real_spectra(spectra_file):
-    """
-    Extracting and plotting spectral lines from fits
-    Why multiply to numbers?
-    """
-    real_I = spectra_file[0].data[0][:, 56:].astype('float64') * 2
-    real_Q = spectra_file[0].data[1][:, 56:].astype('float64')
-    real_U = spectra_file[0].data[2][:, 56:].astype('float64')
-    real_V = spectra_file[0].data[3][:, 56:].astype('float64')
-    return np.concatenate((real_I, real_Q, real_U, real_V), axis=1)
 
 
 def metrics(true, pred):
