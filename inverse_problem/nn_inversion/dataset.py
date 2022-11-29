@@ -125,10 +125,10 @@ class PregenSpectrumDataset(Dataset):
     def __getitem__(self, item):
         sample = {'X': (self.samples['X'][0][item, :], self.samples['X'][1][item]),
                   'Y': self.samples['Y'][item, :]}
-
         return sample
 
     def __len__(self):
         param_len = self.samples['Y'].shape[0]
-
         return param_len
+
+

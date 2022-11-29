@@ -44,9 +44,12 @@ def make_loader(data_arr=None, filename: Path = None, pregen=False, ff=True, noi
     else:
         transformed_dataset = SpectrumDataset(data_arr=data_arr, param_path=filename, source=source,
                                               transform=transform, ff=ff, noise=noise)
+
+
     train_idx, val_idx = train_test_split(list(range(len(transformed_dataset))), test_size=val_split)
     train_dataset = Subset(transformed_dataset, train_idx)
     val_dataset = Subset(transformed_dataset, val_idx)
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers)
     val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers)
+
     return train_loader, val_loader
