@@ -325,3 +325,52 @@ def conv1d_transform_standard(**kwargs) -> Callable:
     to_tensor = ToTensor()
     to_conv = ToConv1d()
     return transforms.Compose([norm, to_tensor, to_conv])
+
+
+def inverse_transform_one_param(y, param_number, inv_logB, inv_angle_transformation):
+    kw_defaults = {
+        # 'max': [5000, 180, 180, 90, 1.5, 100, 1, 1, 10, 1, 10],
+        # 'min': [0, 0, 0, 20, 0, 0.01, 0, 0, -10, 0, -10]
+        'max': [5000, 180, 180, 90, 1.5, 1, 1, 1, 10, 1, 10],
+        'min': [0, 0, 0, 20, 0, 0.01, 0, 0, -10, 0, -10]
+    }
+    if inv_logB:
+        kw_defaults['max'][0] = 8.51
+        kw_defaults['min'][0] = 0
+    if inv_angle_transformation:
+        range_ = 1
+        kw_defaults['max'][1:3] = range_, range_
+        kw_defaults['min'][1:3] = -range_, -range_
+    params_range = np.array(kw_defaults['max']).reshape(-1, 1) - np.array(kw_defaults['min']).reshape(-1, 1)
+    transformed_params = y * params_range[param_number] + kw_defaults['min'][param_number]
+    if inv_logB and param_number == 0:
+        transformed_params = np.exp(transformed_params)
+    if inv_angle_transformation and 0 < param_number < 3:
+        if np.max(transformed_params) > 1:
+            transformed_params = transformed_params / np.max(transformed_params)
+        if np.min(transformed_params) < -1:
+            transformed_params = transformed_params / np.abs(np.min(transformed_params))
+        transformed_params = np.arccos(transformed_params) * 180 / np.pi
+    return transformed_params
+
+
+def transform_dist(mu, sigma, param_number, inv_logB, inv_angle_transformation):
+    X = np.random.normal(mu, sigma, size=100)
+    Y = inverse_transform_one_param(X, param_number, inv_logB, inv_angle_transformation)
+    new_mu = Y.mean()
+    new_sigma = Y.std()
+    return new_mu, new_sigma
+
+
+def inverse_transformation_unc(params_mu, params_sigma, inv_logB=True, inv_angle_transformation=True):
+    shape = params_mu.shape
+    params_mu = params_mu.reshape(-1, 11)
+    params_sigma = params_sigma.reshape(-1, 11)
+    new_mu = np.empty(params_mu.shape)
+    new_sigma = np.empty(params_sigma.shape)
+    for i in range(11):
+        for j in range(len(params_mu[:, i])):
+            new_mu[j, i], new_sigma[j, i] = transform_dist(params_mu[j, i], params_sigma[j, i], i, inv_logB, inv_angle_transformation)
+    new_mu = new_mu.reshape(shape)
+    new_sigma = new_sigma.reshape(shape)
+    return new_mu, new_sigma

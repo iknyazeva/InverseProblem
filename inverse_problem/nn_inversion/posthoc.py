@@ -4,7 +4,7 @@ from matplotlib.colors import LogNorm
 import os
 import torch
 from inverse_problem.nn_inversion import normalize_spectrum
-
+import pylab
 from inverse_problem import HinodeME, me_model
 import glob
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
@@ -13,6 +13,9 @@ from astropy.io import fits
 import numpy as np
 import pandas as pd
 from scipy import stats
+from scipy.stats import norm
+import matplotlib as mpl
+
 
 
 def open_param_file(path, normalize=True, print_params=True, **kwargs):
@@ -50,6 +53,30 @@ def open_spectrum_data(sp_folder, date, idx):
     sp_lines = sorted(glob.glob(sp_path + '*.fits'))
     # print(f'Number of files: {len(sp_lines)}')
     return fits.open(sp_lines[idx])
+
+
+def plot_spectrum(sp_folder, date, path_to_refer, idx_0, idx_1):
+    """
+    Plot spectrum, corresponding referens values of parameters and model spectrum
+    idx_0 - index of line in one spectrum file (512), idx_1 - index of spectrum file sorted by time (873 in total)
+    """
+    # refer, names = open_param_file(path_to_refer, print_params=False, normalize=False)
+    spectra_file = open_spectrum_data(sp_folder, date, idx_1)
+    real_sp = real_spectra(spectra_file)
+    full_line = real_sp[idx_0, :]
+    fig, ax = plt.subplots(2, 2, figsize=(10, 5))
+    line_type = ['I', 'Q', 'U', 'V']
+    print('Real spectrum for parameters')
+    # print(', '.join([names[i]+f': {refer[idx_0,idx_1, i]:.2f}' for i in range(11)]))
+    cont_int = np.max(full_line)
+
+    for i in range(4):
+        ax[i // 2][i % 2].plot(full_line[i * 56:i * 56 + 56] / cont_int)
+        ax[i // 2][i % 2].set_title(f'Spectral line {line_type[i]}')
+    fig.suptitle(f'Real spectrum with empiric intensity {cont_int :.1f}', fontsize=16, fontweight="bold")
+    fig.set_tight_layout(tight=True)
+
+    return full_line, cont_int
 
 
 def real_spectra(spectra_file, mult_I=2):
@@ -437,112 +464,111 @@ def plot_analysis_hist2d(refer, predicted, names=None, index=0, mask=None, title
     return fig, axs
 
 
-def plot_analysis_hist2d_up(refer, predicted_mu, predicted_sigma, names=None, index=0, mask=None, title=None, bins=100,
-                            save_path=None, number_of_samples=None, outliers=None):
+def plot_analysis_hist2d_unc(refer, predicted_mu, predicted_sigma, names, index=0, mask=None, title=None, bins=100,
+                            save_path=None):
     """
         draws 2d graphs:
         1. (x_true - x_pred)/sigma_pred vs x_true,
         2. (x_true - x_pred) vs sigma_pred,
         3. x_true vs sigma_pred,
     """
-    if not title:
-        title = [r'$\left(x_{true} - x_{pred}\right) / \sigma_{pred}$ vs $x_{true}$',
-                 r'$\sigma_{pred}$ vs $x_{true} - x_{pred}$',
-                 r'$\sigma_{pred}$ vs $x_{true}$'][index]
-
-    if names is None:
-        names = ['Field Strength',
-                 'Field Inclination',
-                 'Field Azimuth',
-                 'Doppler Width',
-                 'Damping',
-                 'Line Strength',
-                 'S_0',
-                 'S_1',
-                 'Doppler Shift',
-                 'Filling Factor',
-                 'Stray light Doppler shift']
-
-    refer_flat = refer.reshape(-1, 11)
-    predicted_mu_flat = predicted_mu.reshape(-1, 11)
-    predicted_sigma_flat = predicted_sigma.reshape(-1, 11)
-
-    zero_rows = np.any(predicted_sigma_flat == 0, axis=1)
-
-    if np.any(zero_rows) and mask is not None and index == 0:
-        mask_flat = mask.reshape(-1, 11)
-        masked_rows = np.any(mask_flat, axis=1)
-
-        masked_rows = masked_rows | zero_rows
-    elif np.any(zero_rows) and index == 0:
-        masked_rows = zero_rows
-    elif mask is not None:
-        mask_flat = mask.reshape(-1, 11)
-        masked_rows = np.any(mask_flat, axis=1)
-    else:
-        masked_rows = np.any(np.zeros_like(refer_flat, dtype=np.bool_), axis=1)
-
-    refer_flat = refer_flat[~masked_rows, :]
-    predicted_mu_flat = predicted_mu_flat[~masked_rows, :]
-    predicted_sigma_flat = predicted_sigma_flat[~masked_rows, :]
-
-    print(f'Objects with sigma=0: {np.any(predicted_sigma_flat == 0, axis=1).sum()}')
-
-    if number_of_samples:
-        indices = np.random.choice(refer_flat.shape[0], number_of_samples, replace=False)
-        refer_flat = refer_flat[indices]
-        predicted_mu_flat = predicted_mu_flat[indices]
-        predicted_sigma_flat = predicted_sigma_flat[indices]
-
-    fig, axs = plt.subplots(3, 4, figsize=(19, 15), constrained_layout=True)
-    fig.suptitle(title, fontsize=16)
-
+    xlabels = [r'$x_{true}$', r'$x_{true} - x_{pred}$', r'$x_{true}$', r'$x_{pred}$', r'$x_{true}$']
+    ylabels = [r'$(x_{true} - x_{pred})/ \sigma_{pred}$', r'$x_{pred}$', r'$\sigma_{pred}$', r'$\sigma_{pred}$', r'$(x_{pred} - x_{true})/x_{true}$']
+    param_labels = ['Gauss', 'Degree', 'Degree', 'm$\AA$', 'Dopplerwidths', 'Relative units', 'Normalized intensity', 'Normalized intensity', 'kmps', 'Normalized intensity', 'kmps']
+    font = 19
+    fig, axs = plt.subplots(3, 4, figsize=(16, 12))
     for i, ax in enumerate(axs.flat[:-1]):
         if index == 0:
-            X, Y = refer_flat[:, i], (refer_flat[:, i] - predicted_mu_flat[:, i]) / predicted_sigma_flat[:, i]
+            X, Y = refer[:, i], (refer[:, i] - predicted_mu[:, i]) / predicted_sigma[:, i]
         elif index == 1:
-            X, Y = refer_flat[:, i] - predicted_mu_flat[:, i], predicted_sigma_flat[:, i]
+            X, Y = refer[:, i] - predicted_mu[:, i], predicted_sigma[:, i]
         elif index == 2:
-            X, Y = refer_flat[:, i], predicted_sigma_flat[:, i]
+            X, Y = refer[:, i], predicted_mu[:, i]
+        elif index == 3:
+            X, Y = predicted_mu[:, i], predicted_sigma[:, i]
         else:
-            raise ValueError
-
-        if outliers:
-            y_bot = np.percentile(Y, outliers[0])
-            y_top = np.percentile(Y, outliers[1])
-            y_pad = 0.2 * (y_top - y_bot)
-
-            y_min = y_bot - y_pad
-            y_max = y_top + y_pad
-
-            mask_range = (Y > y_min) & (Y < y_max)
-            X = X[mask_range]
-            Y = Y[mask_range]
-
-        ax.set_title(names[i], weight='bold')
-        plot_params = ax.hist2d(X, Y, bins=bins, norm=LogNorm())
-
-    if index == 0:
-        fig.supxlabel(r'$x_{true}$', fontsize='xx-large')
-        fig.supylabel(r'$\left(x_{true} - x_{pred}\right)/ \sigma_{pred}$', fontsize='xx-large')
-    elif index == 1:
-        fig.supxlabel(r'$x_{true} - x_{pred}$', fontsize='xx-large')
-        fig.supylabel(r'$\sigma_{pred}$', fontsize='xx-large')
-    elif index == 2:
-        fig.supxlabel(r'$x_{true}$', fontsize='xx-large')
-        fig.supylabel(r'$\sigma_{pred}$', fontsize='xx-large')
-    else:
-        raise ValueError
-
+            X, Y = refer[:, i], (predicted_mu[:, i] - refer[:, i])/refer[:, i]
+        if i == 3: bins = bins*3
+        elif i == 0: bins = bins*3
+        elif i == 7: bins = bins*3
+        elif i == 9: bins = bins//2
+        elif i == 10: bins = bins//3
+        ax.set_title(names[i], weight='bold', fontsize=14)
+        plot_params = ax.hist2d(X, Y, bins=bins, norm=LogNorm(), cmap=truncate_colormap('Blues', 0.2, 1))
+        ymin, ymax = np.percentile(Y, 0.5), np.percentile(Y, 99.5)
+        xmin, xmax = np.percentile(X, 0.5), np.percentile(X, 99.5)
+        xlim = np.min([abs(xmin), abs(xmax)])
+        if index == 0 and i == 3: xmin = 20
+        elif index == 0 and i == 4: xmin = 0
+        ax.axis(ymin=ymin, ymax=ymax, xmin=-xlim, xmax=xlim)
+        ax.get_xaxis().labelpad = 10
+        ax.set_xlabel(param_labels[i], fontsize=12)
+        ax.get_yaxis().labelpad = 10
+        ax.set_ylabel(param_labels[i], fontsize=12)
+    fig.text(0.52, 0.01, xlabels[index], ha='center', fontsize=font)
+    fig.text(0.00, 0.51, ylabels[index], va='center', rotation='vertical', fontsize=font)
     fig.set_facecolor('xkcd:white')
-    fig.delaxes(axs[2][3])
+    axs[2][3].axis("off")
+    fig.tight_layout(pad=4)
+    cax = plt.axes([0.809, 0.093, 0.015, 0.204])
+    plt.colorbar(plot_params[3], ax=axs, cax=cax, shrink=1)
+    fig.savefig(save_path + title + "_" + str(index) + ".png", dpi=400)
+    plt.show()
 
-    plt.colorbar(plot_params[3], ax=axs, shrink=1)
 
-    if save_path:
-        plt.savefig(save_path + ".png")
+def plot_fitting_curves_unc(refer, predicted_mu, predicted_sigma, names, mask=None, title=None, save_path=None):
+    """
+        draws fitting curves a, b: each point of a parameter is fitted by the N(a, b)
+    """
+    param_labels = ['Gauss', 'Degree', 'Degree', 'm$\AA$', 'Dopplerwidths', 'Normalized intensity',
+                    'Normalized intensity', 'Normalized intensity', 'kmps', 'Normalized intensity', 'kmps']
+    fig, axs = plt.subplots(3, 4, figsize=(15, 12))
+    skipping = 25
+    for i, ax in enumerate(axs.flat[:-1]):
+        X, Y = refer[:, i], (refer[:, i] - predicted_mu[:, i]) / predicted_sigma[:, i]
+        ax.set_title(names[i], weight='bold', fontsize=14)
+        grid, a, b = calculate_ab_fit(X, Y, N=80)
+        ax.plot(grid[skipping:], a[skipping:], color='orange', label='mean (one model)')
+        ax.fill_between(grid[skipping:], a[skipping:], a[skipping:] + b[skipping:], color='orange', alpha=0.1, label='std (one model)')
+        ax.fill_between(grid[skipping:], a[skipping:], a[skipping:] - b[skipping:], color='orange', alpha=0.1)
+        xmin, xmax = np.percentile(grid[skipping:], 0.01), np.percentile(grid[skipping:], 99.9)
+        ymin, ymax = max(-30, np.percentile(a[skipping:] - b[skipping:], 0.01)), min(30, np.percentile(a[skipping:] + b[skipping:], 99.9))
+        if i == 6 or i == 7: ax.set_xticks(np.round(np.linspace(xmin, 0.9 * xmax, 3), 2))
+        ax.get_xaxis().labelpad = 10
+        ax.set_xlabel(param_labels[i], fontsize=12)
+        ax.axis(ymin=ymin, ymax=ymax)
+    font = 19
+    fig.text(0.5, 0.01, r'$x_{true}$', ha='center', fontsize=font)
+    fig.text(0.01, 0.5, r'$(x_{true} - x_{pred})/ \sigma_{pred}$', va='center', rotation='vertical', fontsize=font)
+    fig.set_facecolor('xkcd:white')
+    h, l = ax.get_legend_handles_labels()
+    axs[2][3].legend(h, l, loc='upper left', borderaxespad=0)
+    axs[2][3].axis("off")
+    pylab.tight_layout(pad=4)
+    fig.savefig(save_path + title + "_" + 'stats' + ".png", dpi=400)
+    plt.show()
 
-    return fig, axs
+
+def calculate_ab_fit(X, Y, N=100):
+    data = np.array([X, Y]).T
+    sorted_data = data[np.argsort(data[:, 0])].T
+    X, Y = sorted_data[0], sorted_data[1]
+    a, b, grid = [], [], []
+    shape = X.shape[0]
+    step = shape // N
+    X_limit = np.abs(X[-1] - X[0])/N
+    for i in range(N):
+        slice = Y[i * step:(i + 1) * step]
+        if slice.shape[0] != 0: mu, std = norm.fit(slice)
+        else: mu, std = None, None
+        if np.abs(X[i * step:(i + 1) * step][-1] - X[i * step:(i + 1) * step][0]) <= X_limit:
+            a.append(mu)
+            b.append(std)
+            if i != N - 1: grid.append(np.mean(X[i*step : (i + 1)*step]))
+            else: grid.append(np.max(X[i*step : (i + 1)*step]))
+    if len(grid) != len(a):
+        raise ValueError(f'grid ({len(grid)}) and a ({len(a)}) must be of the same size')
+    return np.array(grid), np.array(a), np.array(b)
 
 
 def plot_hist_params(pars_arr, pars_names=None, plot_name=None, bins=100, save_path=None):
@@ -648,7 +674,207 @@ def plot_spectra(pred, true):
     sc = axs[0].imshow(pred, cmap='gray')
     fig.colorbar(sc, ax=axs[0])
     axs[0].set_title('Predicted')
-
     sc = axs[1].imshow(true, cmap='gray')
     fig.colorbar(sc, ax=axs[1])
     axs[1].set_title('True')
+
+
+
+def plot_correlation(refer, predicted_mu, names, bins=100, title=None, save_path=None):
+    """
+        scatter plots refer vs predicted data
+    """
+    param_labels = ['Gauss', 'Degree', 'Degree', 'm$\AA$', 'Dopplerwidths', 'Relative units',
+                    'Normalized intensity', 'Normalized intensity', 'kmps', 'Normalized intensity', 'kmps']
+    fig, axs = plt.subplots(3, 4, figsize=(16, 12))
+    for i, ax in enumerate(axs.flat[:-1]):
+        ax.set_title(names[i], weight='bold', fontsize=14)
+        X, Y = refer[:, i], predicted_mu[:, i]
+        if i == 3: bins = bins * 2
+        elif i == 7: bins = bins * 3
+        elif i == 9: bins = bins // 2
+        plot_params = ax.hist2d(X, Y, bins=bins, norm=LogNorm(), cmap=truncate_colormap('Blues', 0.2, 1))
+        ymin, ymax = np.percentile(Y, 0.05), np.percentile(Y, 99.95)
+        xmin, xmax = np.percentile(X, 0.05), np.percentile(X, 99.95)
+        lb, hb = np.min([ymin, xmin]), np.max([ymax, xmax])
+        ax.plot(np.array([lb, hb]), np.array([lb, hb]), 'r--', linewidth=0.8)
+        ax.axis(ymin=lb, ymax=hb, xmin=lb, xmax=hb)
+        ax.get_yaxis().labelpad = 10
+        ax.set_ylabel(param_labels[i], fontsize=12)
+        ax.get_xaxis().labelpad = 10
+        ax.set_xlabel(param_labels[i], fontsize=12)
+    font = 19
+    fig.text(0.5, 0.01, r'$x_{true}$', ha='center', fontsize=font)
+    fig.text(0.01, 0.5, r'$x_{pred}$', va='center', rotation='vertical', fontsize=font)
+    fig.set_facecolor('xkcd:white')
+    axs[2][3].axis("off")
+    pylab.tight_layout(pad=4)
+    cax = plt.axes([0.809, 0.093, 0.015, 0.204])
+    plt.colorbar(plot_params[3], ax=axs, cax=cax, shrink=1)
+    pylab.tight_layout(pad=4)
+    fig.savefig(save_path + title + "_correlation.png", dpi=400)
+    plt.show()
+
+
+def plot_fitting_curves_unc_double(refer, predicted_mu, predicted_sigma, refer2, predicted_mu2, predicted_sigma2, names=None, mask=None, title=None, save_path=None):
+    """
+        draws fitting curves a, b: each point of a parameter is fitted by the N(a, b)
+    """
+    if mask is not None:
+        mask_flat = mask.reshape(-1, 11)
+        masked_rows = np.any(mask_flat, axis=1)
+        refer = refer[~masked_rows, :]
+        predicted_mu = predicted_mu[~masked_rows, :]
+        predicted_sigma = predicted_sigma[~masked_rows, :]
+    if names is None:
+        names = ['Field Strength',
+                 'Field Inclination',
+                 'Field Azimuth',
+                 'Doppler Width',
+                 'Damping',
+                 'Line Strength',
+                 'Source Function (SF)',
+                 'Cont. SF Gradient',
+                 'Doppler Shift (DS)',
+                 'Filling Factor',
+                 'Stray Light DS']
+    fig, axs = plt.subplots(3, 4, figsize=(15, 11))
+    skipping = 25
+    for i, ax in enumerate(axs.flat[:-1]):
+        X, Y = refer[:, i], (refer[:, i] - predicted_mu[:, i]) / predicted_sigma[:, i]
+        X2, Y2 = refer2[:, i], (refer2[:, i] - predicted_mu2[:, i]) / predicted_sigma2[:, i]
+        ax.set_title(names[i], weight='bold', fontsize=14)
+        grid, a, b = calculate_ab_fit(X, Y, N=100)
+        grid2, a2, b2 = calculate_ab_fit(X2, Y2, N=100)
+        ax.plot(grid[skipping:], a[skipping:], color='orange', label='mean (one model)')
+        ax.fill_between(grid[skipping:], a[skipping:], a[skipping:] + b[skipping:], color='orange', alpha=0.1, label='std (one model)')
+        ax.fill_between(grid[skipping:], a[skipping:], a[skipping:] - b[skipping:], color='orange', alpha=0.1)
+        ax.plot(grid2[skipping:], a2[skipping:], color='green', label='mean (ensemble)')
+        ax.fill_between(grid2[skipping:], a2[skipping:], a2[skipping:] + b2[skipping:], color='green', alpha=0.1)
+        ax.fill_between(grid2[skipping:], a2[skipping:], a2[skipping:] - b2[skipping:], color='green', alpha=0.1, label='std (ensemble)')
+        xmin, xmax = np.percentile(grid[skipping:], 0.01), np.percentile(grid[skipping:], 99.9)
+        if i == 6 or i == 7: ax.set_xticks(np.round(np.linspace(xmin, 0.9 * xmax, 3), 2))
+    font = 19
+    fig.text(0.5, 0.01, r'$x_{true}$', ha='center', fontsize=font)
+    fig.text(0.01, 0.5, r'$(x_{true} - x_{pred})/ \sigma_{pred}$', va='center', rotation='vertical', fontsize=font)
+    fig.set_facecolor('xkcd:white')
+    h, l = ax.get_legend_handles_labels()
+    axs[2][3].legend(h, l, loc='upper left', borderaxespad=0)
+    axs[2][3].axis("off")
+    pylab.tight_layout(pad=4)
+    fig.savefig(save_path + title + "_" + 'stats' + ".png")
+    fig.savefig(save_path + title + "_" + 'stats' + "_H.png", dpi=400)
+    plt.show()
+
+
+def truncate_colormap(cmap, minval=0.0, maxval=1.0, n=100):
+    '''
+    Code source: https://stackoverflow.com/a/18926541
+    '''
+    if isinstance(cmap, str):
+        cmap = plt.get_cmap(cmap)
+    new_cmap = mpl.colors.LinearSegmentedColormap.from_list(
+        'trunc({n},{a:.2f},{b:.2f})'.format(n=cmap.name, a=minval, b=maxval),
+        cmap(np.linspace(minval, maxval, n)))
+    return new_cmap
+
+
+def plot_params2(data, names, title=None, save_path=None, color_map='gray',inverse=False):
+    """
+    Version with colors
+    Draw all 11 parameters at once
+    data: np array (:, :, 11)
+    """
+    fig, axs = plt.subplots(3, 4, figsize=(15, 9))
+    x1_limits = [0]*11
+    x2_limits = [1]*11
+    if inverse:
+        x2_limits = [0] * 11
+        x1_limits = [1] * 11
+    bar_labels = ['Gauss', 'Degree', 'Degree', 'm$\AA$', 'Dopplerwidths', 'Normalized intensity', 'Normalized intensity', 'Normalized intensity', 'kmps', 'Normalized intensity', 'kmps']
+    for i, ax in enumerate(axs.flat[:-1]):
+        x_min, x_max = np.min(data[:, :, i]), np.max(data[:, :, i])
+        ax.set_title(names[i], weight='bold', fontsize=14)
+        params = ax.imshow(data[:, :, i], cmap=truncate_colormap(color_map, x1_limits[i], x2_limits[i]), vmin=x_min, vmax=x_max, aspect='auto')
+        ax.axis('off')
+        clb = fig.colorbar(params, ax=ax)
+        clb.ax.get_yaxis().labelpad = 15
+        clb.ax.set_ylabel(bar_labels[i], rotation=270, fontsize=12)
+    fig.set_facecolor('xkcd:white')
+    axs[2][3].axis("off")
+    fig.tight_layout(pad=2)
+    fig.savefig(save_path + title + "_" + 'params' + ".png", dpi=100)
+
+
+def plot_params3(data1, data2, data3, names, title=None, save_path=None, color_map='gray',inverse=False):
+    """
+    Version with colors, for 6x5 format (5x2x(reference+prediction+uncertainty estimation))
+    Draw all 11 parameters at once
+    data: np array (:, :, 11)
+    """
+    m, n = 5, 6
+    y_labels = [r'$x_{true}$', r'$x_{pred}$', r'$\sigma_{pred}$']
+    fig, axs = plt.subplots(n, m, figsize=(25, 23))
+    x1_limits = [0]*11
+    x2_limits = [1]*11
+    if inverse:
+        x2_limits = [0] * 11
+        x1_limits = [1] * 11
+    for i in range(10):
+        for j in range(3):
+            x1_limits = [1] * 11
+            bar_labels = ['Gauss', 'Degree', 'Degree', 'm$\AA$', 'Dopplerwidths', 'Relative units',
+                          'Normalized intensity', 'Normalized intensity', 'kmps', 'Normalized intensity', 'kmps']
+            data_r = data1[:, :, i]
+            data_p = data2[:, :, i]
+            x_min_r, x_max_r = np.min(data_r), np.max(data_r)
+            x_min_p, x_max_p = np.min(data_p), np.max(data_p)
+            x_min, x_max = min(x_min_r, x_min_p), max(x_max_r, x_max_p)
+            if j % 3 == 0:
+                axs[j + 3 * (i//m)][i%m].set_title(names[i], weight='bold', fontsize=20, pad=10)
+                params = axs[j + 3 * (i // m)][i % m].imshow(data_r, cmap=truncate_colormap(color_map, x1_limits[i],
+                                                                                          x2_limits[i]), vmin=x_min,
+                                                             vmax=x_max, aspect='auto')
+                axs[j + 3 * (i // m)][i % m].axis('off')
+                clb = fig.colorbar(params, ax=axs[j + 3 * (i // m)][i % m])
+                clb.ax.tick_params(labelsize=14)
+                clb.ax.get_yaxis().labelpad = 20
+                clb.ax.set_ylabel(bar_labels[i], rotation=270, fontsize=18)
+            elif j % 3 == 1:
+                params = axs[j + 3 * (i // m)][i % m].imshow(data_p, cmap=truncate_colormap(color_map, x1_limits[i],
+                                                                                          x2_limits[i]), vmin=x_min,
+                                                             vmax=x_max, aspect='auto')
+                axs[j + 3 * (i // m)][i % m].axis('off')
+                clb = fig.colorbar(params, ax=axs[j + 3 * (i // m)][i % m])
+                clb.ax.tick_params(labelsize=14)
+                clb.ax.get_yaxis().labelpad = 20
+                clb.ax.set_ylabel(bar_labels[i], rotation=270, fontsize=18)
+            else:
+                x1_limits = [0.95] * 11
+                data = data3[:, :, i]
+                x_min, x_max = np.min(data), np.percentile(data, 99)
+                params = axs[j + 3 * (i // m)][i % m].imshow(data, cmap=truncate_colormap(color_map, x1_limits[i],
+                                                                                          x2_limits[i]), vmin=x_min,
+                                                             vmax=x_max, aspect='auto')
+                axs[j + 3 * (i // m)][i % m].axis('off')
+                clb = fig.colorbar(params, ax=axs[j + 3 * (i // m)][i % m])
+                clb.ax.tick_params(labelsize=14)
+                clb.ax.get_yaxis().labelpad = 20
+                clb.ax.set_ylabel(bar_labels[i], rotation=270, fontsize=18)
+    y_shift, x_shift = 1/(n+0.2), 0.01
+    starting_point = 0.08
+    font = 24
+    fig.text(x_shift, starting_point + y_shift*5, '$x_{true}$', va='center', rotation='vertical', fontsize=font, weight='bold')
+    fig.text(x_shift, starting_point + y_shift*4, '$x_{pred}$', va='center', rotation='vertical', fontsize=font, weight='bold')
+    fig.text(x_shift, starting_point + y_shift*3, r'$\sigma_{pred}$', va='center', rotation='vertical', fontsize=font, weight='bold')
+    fig.text(x_shift, starting_point + y_shift*2, '$x_{true}$', va='center', rotation='vertical', fontsize=font, weight='bold')
+    fig.text(x_shift, starting_point + y_shift, '$x_{pred}$', va='center', rotation='vertical', fontsize=font, weight='bold')
+    fig.text(x_shift, starting_point, r'$\sigma_{pred}$', va='center', rotation='vertical', fontsize=font, weight='bold')
+    fig.set_facecolor('xkcd:white')
+    axs[-1][-1].axis("off")
+    axs[-2][-1].axis("off")
+    axs[-3][-1].axis("off")
+    axs[-1][-4].set_ylabel('$x_{true}$', fontsize=12)
+    fig.tight_layout(pad=3)
+    fig.subplots_adjust(left=0.04, bottom=0.01, right=0.98, top=0.95)
+    fig.savefig(save_path + title + "_" + "params.png", dpi=80)
