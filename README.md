@@ -17,12 +17,16 @@ products. Level 1 and 2 data are available by following the data link: https://c
 Preprint with the description: https://www.researchgate.net/project/Stockes-Spectral-Profile-Inversion-with-neural-networks.
 
 
-`notebooks/mlp_partly_indep.ipynb`
+`notebooks/baseline_mlp_partly_indep.ipynb`
 
 ## Run experiments
 `notebooks/mlp_partly_indep_conv_unc.ipynb`
 
 ## Get figures
+
+Predictions made on simulated data:
 `notebooks/figures_simulated_data.ipynb`
+
+Predictions made on real observations:
 `notebooks/figures_real_spectra.ipynb`
 
