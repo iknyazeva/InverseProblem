@@ -809,7 +809,7 @@ def plot_params2(data, names, title=None, save_path=None, color_map='gray',inver
 def plot_params3(data1, data2, data3, names, title=None, save_path=None, color_map='gray',inverse=False):
     """
     Version with colors, for 6x5 format (5x2x(reference+prediction+uncertainty estimation))
-    Draw all 11 parameters at once
+    Draw 10 parameters at once (10/11 is just for the representation)
     data: np array (:, :, 11)
     """
     m, n = 5, 6

@@ -329,8 +329,6 @@ def conv1d_transform_standard(**kwargs) -> Callable:
 
 def inverse_transform_one_param(y, param_number, inv_logB, inv_angle_transformation):
     kw_defaults = {
-        # 'max': [5000, 180, 180, 90, 1.5, 100, 1, 1, 10, 1, 10],
-        # 'min': [0, 0, 0, 20, 0, 0.01, 0, 0, -10, 0, -10]
         'max': [5000, 180, 180, 90, 1.5, 1, 1, 1, 10, 1, 10],
         'min': [0, 0, 0, 20, 0, 0.01, 0, 0, -10, 0, -10]
     }
