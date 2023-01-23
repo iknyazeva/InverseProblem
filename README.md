@@ -1,15 +1,32 @@
-# Neural network with pytorch for Stockes Spectral Profile Inversion
+# Code for "Stokes inversion techniques with neural networks: analysis of uncertainty in parameter estimation" paper
 
-Source code for solar atmospheric parameters recovering. See usage examples in notebook folder. 
+## Introduction
 
-Preprint with the description: https://www.researchgate.net/project/Stockes-Spectral-Profile-Inversion-with-neural-networks
+Over the past two decades, neural networks have been shown to be a fast and accurate alternative to classic inversion technique methods. However, most of these codes can be used to obtain point estimates of the parameters, so ambiguities, the degeneracies, and the uncertainties of each parameter remain uncovered.
+We provide inversion codes based on the simple Milne-Eddington model of the stellar atmosphere and deep neural networks to both parameter estimation and their uncertainty intervals. 
+
+The proposed framework is designed in such a way that it can be expanded and adapted to other atmospheric models or combinations of them. Additional information can also be incorporated directly into the model. 
+
+## Data source
+In the current study, we used a collection of the Level 1 calibrated Stokes spectra (comprised by images stored in FITS format) and collection of the Level 2 data sets (obtained from the MERLIN spectral line inversion of the Level 1 calibrated spectra) produced by the Spectropolarimeter (SP) on board the Hinode, since its launch in 2006. Hinode is a Japanese mission, developed and launched by ISAS/JAXA, with NAOJ as a domestic partner and NASA and STFC (UK) as international partners. It is operated by these agencies in co-operation with ESA and NSC (Norway). The Hinode has an open data policy, allowing anyone access to the data and data
+products. Level 1 and 2 data are available by following the data link: https://csac.hao.ucar.edu/sp_data.php.
 
 
+## Baseline model 
 
-## Why?
+Preprint with the description: https://www.researchgate.net/project/Stockes-Spectral-Profile-Inversion-with-neural-networks.
 
-Spectropolarimetric observations are broadly used for the extraction of physical information in the field of solar physics. Inferring magnetic and thermodynamic information from these observations includes inversion problem solving. Assuming that spectropolarimetric profiles are produced by a given atmospheric model, it is required to find the best sets of parameters within such a model corresponding to particular observations. Standard optimization approach often requires large computational resources and even in this case still performs very slowly.
 
-## What's new?
-Previously it was suggested to use different strategies with artificial neural networks to overcome problems with computational power. It was previously shown that neural networks could be a viable alternative to the standard least square approach, but they could not replace it.  
-Most papers only cover Magnetic Fields Vector parameter inferring, whereas the commonly used solar atmosphere model includes 11 parameters. In this paper we provide an end-to-end deep learning framework for full parameter inferring as well as comparison of several approaches for multi-output predictions. For this purpose, we trained one common network to predict all parameters, a set of parameter-oriented independent networks to deal with each parameter, and finally a combination of the above: a set of parameter-oriented independent networks built upon several layers of the pretrained common network. Our results show that using a partly independent network built upon a pretrained network provides the best results and demonstrates better generalization performance. 
+`results/baseline_mlp_partly_indep.ipynb`
+
+## Run experiments
+`results/mlp_partly_indep_conv_unc.ipynb`
+
+## Get figures
+
+Predictions made on simulated data:
+`results/figures_simulated_data.ipynb`
+
+Predictions made on real observations:
+`results/figures_real_spectra.ipynb`
+
